@@ -1,0 +1,362 @@
+import { prisma } from "@/lib/prisma"
+import { fetchEndpoint } from "@/lib/oura/client"
+import { getValidAccessToken } from "@/lib/oura/oauth"
+import { NORMALIZERS } from "@/lib/oura/normalizers"
+import type { EndpointKey } from "@/lib/oura/endpoints"
+
+export const NON_WEAR_THRESHOLD_SECONDS = 28_800 // 8 hours
+
+export interface SyncOptions {
+  endpoints: EndpointKey[]
+  startDate: string
+  endDate: string
+  force?: boolean
+  source?: string
+}
+
+export interface SyncResult {
+  sessionId: string
+  status: "success" | "partial" | "error"
+  recordsInserted: number
+  recordsUpdated: number
+  recordsSkipped: number
+  errors: Array<{ endpoint: string; message: string }>
+}
+
+export async function syncEndpoints(options: SyncOptions): Promise<SyncResult> {
+  const session = await prisma.ouraSyncSession.create({
+    data: {
+      status: "running",
+      source: options.source ?? "manual",
+      endpoints: options.endpoints,
+      windowStart: options.startDate,
+      windowEnd: options.endDate,
+    },
+  })
+
+  let totalInserted = 0
+  let totalUpdated = 0
+  let totalSkipped = 0
+  const errors: Array<{ endpoint: string; message: string }> = []
+
+  try {
+    const accessToken = await getValidAccessToken()
+
+    for (const endpoint of options.endpoints) {
+      try {
+        const { data } = await fetchEndpoint({
+          accessToken,
+          endpoint,
+          startDate: options.startDate,
+          endDate: options.endDate,
+        })
+
+        const normalizer = NORMALIZERS[endpoint]
+        if (!normalizer) {
+          errors.push({ endpoint, message: "No normalizer found" })
+          continue
+        }
+
+        const result = await upsertEndpointData(
+          endpoint,
+          data,
+          normalizer,
+          options.force,
+        )
+        totalInserted += result.inserted
+        totalUpdated += result.updated
+        totalSkipped += result.skipped
+      } catch (err) {
+        errors.push({
+          endpoint,
+          message: err instanceof Error ? err.message : String(err),
+        })
+      }
+    }
+
+    const finalStatus =
+      errors.length === 0
+        ? "success"
+        : errors.length < options.endpoints.length
+          ? "partial"
+          : "error"
+
+    await prisma.ouraSyncSession.update({
+      where: { id: session.id },
+      data: {
+        status: finalStatus,
+        finishedAt: new Date(),
+        recordsInserted: totalInserted,
+        recordsUpdated: totalUpdated,
+        recordsSkipped: totalSkipped,
+        errorMessage:
+          errors.length > 0
+            ? errors.map((e) => `${e.endpoint}: ${e.message}`).join("; ")
+            : null,
+        errorDetails:
+          errors.length > 0
+            ? (errors as unknown as import("@/generated/prisma").Prisma.InputJsonValue)
+            : undefined,
+      },
+    })
+
+    return {
+      sessionId: session.id,
+      status: finalStatus,
+      recordsInserted: totalInserted,
+      recordsUpdated: totalUpdated,
+      recordsSkipped: totalSkipped,
+      errors,
+    }
+  } catch (err) {
+    await prisma.ouraSyncSession.update({
+      where: { id: session.id },
+      data: {
+        status: "error",
+        finishedAt: new Date(),
+        errorMessage: err instanceof Error ? err.message : String(err),
+      },
+    })
+    throw err
+  }
+}
+
+interface UpsertResult {
+  inserted: number
+  updated: number
+  skipped: number
+}
+
+async function upsertEndpointData(
+  endpoint: string,
+  rawData: unknown[],
+  normalizer: (raw: Record<string, unknown>) => Record<string, unknown> | null,
+  force = false,
+): Promise<UpsertResult> {
+  let inserted = 0
+  let updated = 0
+  let skipped = 0
+
+  for (const raw of rawData) {
+    const normalized = normalizer(raw as Record<string, unknown>)
+    if (!normalized) {
+      skipped++
+      continue
+    }
+
+    try {
+      const result = await upsertRecord(endpoint, normalized, force)
+      if (result === "inserted") inserted++
+      else if (result === "updated") updated++
+      else skipped++
+    } catch {
+      skipped++
+    }
+  }
+
+  return { inserted, updated, skipped }
+}
+
+type UpsertOutcome = "inserted" | "updated" | "skipped"
+
+async function upsertRecord(
+  endpoint: string,
+  data: Record<string, unknown>,
+  force: boolean,
+): Promise<UpsertOutcome> {
+  const ouraId = data["ouraId"] as string | undefined
+  const day = data["day"] as string | undefined
+  const timestamp = data["timestamp"] as Date | undefined
+
+  switch (endpoint) {
+    case "daily_sleep":
+      if (!ouraId) return "skipped"
+      await prisma.ouraSleepDaily.upsert({
+        where: { ouraId },
+        create: data as import("@/generated/prisma").Prisma.OuraSleepDailyCreateInput,
+        update: force
+          ? (data as import("@/generated/prisma").Prisma.OuraSleepDailyUpdateInput)
+          : {},
+      })
+      return force ? "updated" : "inserted"
+
+    case "sleep":
+      if (!ouraId) return "skipped"
+      await prisma.ouraSleepPeriod.upsert({
+        where: { ouraId },
+        create: data as import("@/generated/prisma").Prisma.OuraSleepPeriodCreateInput,
+        update: force
+          ? (data as import("@/generated/prisma").Prisma.OuraSleepPeriodUpdateInput)
+          : {},
+      })
+      return "inserted"
+
+    case "daily_readiness":
+      if (!ouraId) return "skipped"
+      await prisma.ouraReadinessDaily.upsert({
+        where: { ouraId },
+        create: data as import("@/generated/prisma").Prisma.OuraReadinessDailyCreateInput,
+        update: force
+          ? (data as import("@/generated/prisma").Prisma.OuraReadinessDailyUpdateInput)
+          : {},
+      })
+      return "inserted"
+
+    case "daily_activity":
+      if (!ouraId) return "skipped"
+      await prisma.ouraActivityDaily.upsert({
+        where: { ouraId },
+        create: data as import("@/generated/prisma").Prisma.OuraActivityDailyCreateInput,
+        update: force
+          ? (data as import("@/generated/prisma").Prisma.OuraActivityDailyUpdateInput)
+          : {},
+      })
+      return "inserted"
+
+    case "daily_stress":
+      if (!ouraId) return "skipped"
+      await prisma.ouraStressDaily.upsert({
+        where: { ouraId },
+        create: data as import("@/generated/prisma").Prisma.OuraStressDailyCreateInput,
+        update: force
+          ? (data as import("@/generated/prisma").Prisma.OuraStressDailyUpdateInput)
+          : {},
+      })
+      return "inserted"
+
+    case "daily_resilience":
+      if (!ouraId) return "skipped"
+      await prisma.ouraResilienceDaily.upsert({
+        where: { ouraId },
+        create: data as import("@/generated/prisma").Prisma.OuraResilienceDailyCreateInput,
+        update: force
+          ? (data as import("@/generated/prisma").Prisma.OuraResilienceDailyUpdateInput)
+          : {},
+      })
+      return "inserted"
+
+    case "heartrate":
+      if (!timestamp) return "skipped"
+      await prisma.ouraHeartRateEntry.upsert({
+        where: { timestamp },
+        create: data as import("@/generated/prisma").Prisma.OuraHeartRateEntryCreateInput,
+        update: force
+          ? (data as import("@/generated/prisma").Prisma.OuraHeartRateEntryUpdateInput)
+          : {},
+      })
+      return "inserted"
+
+    case "daily_spo2":
+      if (!ouraId) return "skipped"
+      await prisma.ouraSpo2Daily.upsert({
+        where: { ouraId },
+        create: data as import("@/generated/prisma").Prisma.OuraSpo2DailyCreateInput,
+        update: force
+          ? (data as import("@/generated/prisma").Prisma.OuraSpo2DailyUpdateInput)
+          : {},
+      })
+      return "inserted"
+
+    case "daily_cardiovascular_age":
+      if (!day) return "skipped"
+      await prisma.ouraCardiovascularAge.upsert({
+        where: { day },
+        create: data as import("@/generated/prisma").Prisma.OuraCardiovascularAgeCreateInput,
+        update: force
+          ? (data as import("@/generated/prisma").Prisma.OuraCardiovascularAgeUpdateInput)
+          : {},
+      })
+      return "inserted"
+
+    case "vo2_max":
+      if (!ouraId) return "skipped"
+      await prisma.ouraVo2Max.upsert({
+        where: { ouraId },
+        create: data as import("@/generated/prisma").Prisma.OuraVo2MaxCreateInput,
+        update: force
+          ? (data as import("@/generated/prisma").Prisma.OuraVo2MaxUpdateInput)
+          : {},
+      })
+      return "inserted"
+
+    case "workout":
+      if (!ouraId) return "skipped"
+      await prisma.ouraWorkout.upsert({
+        where: { ouraId },
+        create: data as import("@/generated/prisma").Prisma.OuraWorkoutCreateInput,
+        update: force
+          ? (data as import("@/generated/prisma").Prisma.OuraWorkoutUpdateInput)
+          : {},
+      })
+      return "inserted"
+
+    case "session":
+      if (!ouraId) return "skipped"
+      await prisma.ouraSession.upsert({
+        where: { ouraId },
+        create: data as import("@/generated/prisma").Prisma.OuraSessionCreateInput,
+        update: force
+          ? (data as import("@/generated/prisma").Prisma.OuraSessionUpdateInput)
+          : {},
+      })
+      return "inserted"
+
+    case "tag":
+      if (!ouraId) return "skipped"
+      await prisma.ouraTag.upsert({
+        where: { ouraId },
+        create: data as import("@/generated/prisma").Prisma.OuraTagCreateInput,
+        update: force
+          ? (data as import("@/generated/prisma").Prisma.OuraTagUpdateInput)
+          : {},
+      })
+      return "inserted"
+
+    case "enhanced_tag":
+      if (!ouraId) return "skipped"
+      await prisma.ouraEnhancedTag.upsert({
+        where: { ouraId },
+        create: data as import("@/generated/prisma").Prisma.OuraEnhancedTagCreateInput,
+        update: force
+          ? (data as import("@/generated/prisma").Prisma.OuraEnhancedTagUpdateInput)
+          : {},
+      })
+      return "inserted"
+
+    case "sleep_time":
+      if (!ouraId) return "skipped"
+      await prisma.ouraSleepTime.upsert({
+        where: { ouraId },
+        create: data as import("@/generated/prisma").Prisma.OuraSleepTimeCreateInput,
+        update: force
+          ? (data as import("@/generated/prisma").Prisma.OuraSleepTimeUpdateInput)
+          : {},
+      })
+      return "inserted"
+
+    case "rest_mode_period":
+      if (!ouraId) return "skipped"
+      await prisma.ouraRestModePeriod.upsert({
+        where: { ouraId },
+        create: data as import("@/generated/prisma").Prisma.OuraRestModePeriodCreateInput,
+        update: force
+          ? (data as import("@/generated/prisma").Prisma.OuraRestModePeriodUpdateInput)
+          : {},
+      })
+      return "inserted"
+
+    case "ring_configuration":
+      if (!ouraId) return "skipped"
+      await prisma.ouraRingConfig.upsert({
+        where: { ouraId },
+        create: data as import("@/generated/prisma").Prisma.OuraRingConfigCreateInput,
+        update: force
+          ? (data as import("@/generated/prisma").Prisma.OuraRingConfigUpdateInput)
+          : {},
+      })
+      return "inserted"
+
+    default:
+      return "skipped"
+  }
+}
