@@ -95,7 +95,7 @@ export async function syncEndpoints(options: SyncOptions): Promise<SyncResult> {
             : null,
         errorDetails:
           errors.length > 0
-            ? (errors as unknown as import("@/generated/prisma").Prisma.InputJsonValue)
+            ? (errors as unknown as import("@prisma/client").Prisma.InputJsonValue)
             : undefined,
       },
     })
@@ -173,9 +173,9 @@ async function upsertRecord(
       if (!ouraId) return "skipped"
       await prisma.ouraSleepDaily.upsert({
         where: { ouraId },
-        create: data as import("@/generated/prisma").Prisma.OuraSleepDailyCreateInput,
+        create: data as import("@prisma/client").Prisma.OuraSleepDailyCreateInput,
         update: force
-          ? (data as import("@/generated/prisma").Prisma.OuraSleepDailyUpdateInput)
+          ? (data as import("@prisma/client").Prisma.OuraSleepDailyUpdateInput)
           : {},
       })
       return force ? "updated" : "inserted"
@@ -184,9 +184,9 @@ async function upsertRecord(
       if (!ouraId) return "skipped"
       await prisma.ouraSleepPeriod.upsert({
         where: { ouraId },
-        create: data as import("@/generated/prisma").Prisma.OuraSleepPeriodCreateInput,
+        create: data as import("@prisma/client").Prisma.OuraSleepPeriodCreateInput,
         update: force
-          ? (data as import("@/generated/prisma").Prisma.OuraSleepPeriodUpdateInput)
+          ? (data as import("@prisma/client").Prisma.OuraSleepPeriodUpdateInput)
           : {},
       })
       return "inserted"
@@ -195,9 +195,9 @@ async function upsertRecord(
       if (!ouraId) return "skipped"
       await prisma.ouraReadinessDaily.upsert({
         where: { ouraId },
-        create: data as import("@/generated/prisma").Prisma.OuraReadinessDailyCreateInput,
+        create: data as import("@prisma/client").Prisma.OuraReadinessDailyCreateInput,
         update: force
-          ? (data as import("@/generated/prisma").Prisma.OuraReadinessDailyUpdateInput)
+          ? (data as import("@prisma/client").Prisma.OuraReadinessDailyUpdateInput)
           : {},
       })
       return "inserted"
@@ -206,9 +206,9 @@ async function upsertRecord(
       if (!ouraId) return "skipped"
       await prisma.ouraActivityDaily.upsert({
         where: { ouraId },
-        create: data as import("@/generated/prisma").Prisma.OuraActivityDailyCreateInput,
+        create: data as import("@prisma/client").Prisma.OuraActivityDailyCreateInput,
         update: force
-          ? (data as import("@/generated/prisma").Prisma.OuraActivityDailyUpdateInput)
+          ? (data as import("@prisma/client").Prisma.OuraActivityDailyUpdateInput)
           : {},
       })
       return "inserted"
@@ -217,9 +217,9 @@ async function upsertRecord(
       if (!ouraId) return "skipped"
       await prisma.ouraStressDaily.upsert({
         where: { ouraId },
-        create: data as import("@/generated/prisma").Prisma.OuraStressDailyCreateInput,
+        create: data as import("@prisma/client").Prisma.OuraStressDailyCreateInput,
         update: force
-          ? (data as import("@/generated/prisma").Prisma.OuraStressDailyUpdateInput)
+          ? (data as import("@prisma/client").Prisma.OuraStressDailyUpdateInput)
           : {},
       })
       return "inserted"
@@ -228,9 +228,9 @@ async function upsertRecord(
       if (!ouraId) return "skipped"
       await prisma.ouraResilienceDaily.upsert({
         where: { ouraId },
-        create: data as import("@/generated/prisma").Prisma.OuraResilienceDailyCreateInput,
+        create: data as import("@prisma/client").Prisma.OuraResilienceDailyCreateInput,
         update: force
-          ? (data as import("@/generated/prisma").Prisma.OuraResilienceDailyUpdateInput)
+          ? (data as import("@prisma/client").Prisma.OuraResilienceDailyUpdateInput)
           : {},
       })
       return "inserted"
@@ -239,9 +239,9 @@ async function upsertRecord(
       if (!timestamp) return "skipped"
       await prisma.ouraHeartRateEntry.upsert({
         where: { timestamp },
-        create: data as import("@/generated/prisma").Prisma.OuraHeartRateEntryCreateInput,
+        create: data as import("@prisma/client").Prisma.OuraHeartRateEntryCreateInput,
         update: force
-          ? (data as import("@/generated/prisma").Prisma.OuraHeartRateEntryUpdateInput)
+          ? (data as import("@prisma/client").Prisma.OuraHeartRateEntryUpdateInput)
           : {},
       })
       return "inserted"
@@ -250,9 +250,9 @@ async function upsertRecord(
       if (!ouraId) return "skipped"
       await prisma.ouraSpo2Daily.upsert({
         where: { ouraId },
-        create: data as import("@/generated/prisma").Prisma.OuraSpo2DailyCreateInput,
+        create: data as import("@prisma/client").Prisma.OuraSpo2DailyCreateInput,
         update: force
-          ? (data as import("@/generated/prisma").Prisma.OuraSpo2DailyUpdateInput)
+          ? (data as import("@prisma/client").Prisma.OuraSpo2DailyUpdateInput)
           : {},
       })
       return "inserted"
@@ -261,9 +261,9 @@ async function upsertRecord(
       if (!day) return "skipped"
       await prisma.ouraCardiovascularAge.upsert({
         where: { day },
-        create: data as import("@/generated/prisma").Prisma.OuraCardiovascularAgeCreateInput,
+        create: data as import("@prisma/client").Prisma.OuraCardiovascularAgeCreateInput,
         update: force
-          ? (data as import("@/generated/prisma").Prisma.OuraCardiovascularAgeUpdateInput)
+          ? (data as import("@prisma/client").Prisma.OuraCardiovascularAgeUpdateInput)
           : {},
       })
       return "inserted"
@@ -272,9 +272,9 @@ async function upsertRecord(
       if (!ouraId) return "skipped"
       await prisma.ouraVo2Max.upsert({
         where: { ouraId },
-        create: data as import("@/generated/prisma").Prisma.OuraVo2MaxCreateInput,
+        create: data as import("@prisma/client").Prisma.OuraVo2MaxCreateInput,
         update: force
-          ? (data as import("@/generated/prisma").Prisma.OuraVo2MaxUpdateInput)
+          ? (data as import("@prisma/client").Prisma.OuraVo2MaxUpdateInput)
           : {},
       })
       return "inserted"
@@ -283,9 +283,9 @@ async function upsertRecord(
       if (!ouraId) return "skipped"
       await prisma.ouraWorkout.upsert({
         where: { ouraId },
-        create: data as import("@/generated/prisma").Prisma.OuraWorkoutCreateInput,
+        create: data as import("@prisma/client").Prisma.OuraWorkoutCreateInput,
         update: force
-          ? (data as import("@/generated/prisma").Prisma.OuraWorkoutUpdateInput)
+          ? (data as import("@prisma/client").Prisma.OuraWorkoutUpdateInput)
           : {},
       })
       return "inserted"
@@ -294,9 +294,9 @@ async function upsertRecord(
       if (!ouraId) return "skipped"
       await prisma.ouraSession.upsert({
         where: { ouraId },
-        create: data as import("@/generated/prisma").Prisma.OuraSessionCreateInput,
+        create: data as import("@prisma/client").Prisma.OuraSessionCreateInput,
         update: force
-          ? (data as import("@/generated/prisma").Prisma.OuraSessionUpdateInput)
+          ? (data as import("@prisma/client").Prisma.OuraSessionUpdateInput)
           : {},
       })
       return "inserted"
@@ -305,9 +305,9 @@ async function upsertRecord(
       if (!ouraId) return "skipped"
       await prisma.ouraTag.upsert({
         where: { ouraId },
-        create: data as import("@/generated/prisma").Prisma.OuraTagCreateInput,
+        create: data as import("@prisma/client").Prisma.OuraTagCreateInput,
         update: force
-          ? (data as import("@/generated/prisma").Prisma.OuraTagUpdateInput)
+          ? (data as import("@prisma/client").Prisma.OuraTagUpdateInput)
           : {},
       })
       return "inserted"
@@ -316,9 +316,9 @@ async function upsertRecord(
       if (!ouraId) return "skipped"
       await prisma.ouraEnhancedTag.upsert({
         where: { ouraId },
-        create: data as import("@/generated/prisma").Prisma.OuraEnhancedTagCreateInput,
+        create: data as import("@prisma/client").Prisma.OuraEnhancedTagCreateInput,
         update: force
-          ? (data as import("@/generated/prisma").Prisma.OuraEnhancedTagUpdateInput)
+          ? (data as import("@prisma/client").Prisma.OuraEnhancedTagUpdateInput)
           : {},
       })
       return "inserted"
@@ -327,9 +327,9 @@ async function upsertRecord(
       if (!ouraId) return "skipped"
       await prisma.ouraSleepTime.upsert({
         where: { ouraId },
-        create: data as import("@/generated/prisma").Prisma.OuraSleepTimeCreateInput,
+        create: data as import("@prisma/client").Prisma.OuraSleepTimeCreateInput,
         update: force
-          ? (data as import("@/generated/prisma").Prisma.OuraSleepTimeUpdateInput)
+          ? (data as import("@prisma/client").Prisma.OuraSleepTimeUpdateInput)
           : {},
       })
       return "inserted"
@@ -338,9 +338,9 @@ async function upsertRecord(
       if (!ouraId) return "skipped"
       await prisma.ouraRestModePeriod.upsert({
         where: { ouraId },
-        create: data as import("@/generated/prisma").Prisma.OuraRestModePeriodCreateInput,
+        create: data as import("@prisma/client").Prisma.OuraRestModePeriodCreateInput,
         update: force
-          ? (data as import("@/generated/prisma").Prisma.OuraRestModePeriodUpdateInput)
+          ? (data as import("@prisma/client").Prisma.OuraRestModePeriodUpdateInput)
           : {},
       })
       return "inserted"
@@ -349,9 +349,9 @@ async function upsertRecord(
       if (!ouraId) return "skipped"
       await prisma.ouraRingConfig.upsert({
         where: { ouraId },
-        create: data as import("@/generated/prisma").Prisma.OuraRingConfigCreateInput,
+        create: data as import("@prisma/client").Prisma.OuraRingConfigCreateInput,
         update: force
-          ? (data as import("@/generated/prisma").Prisma.OuraRingConfigUpdateInput)
+          ? (data as import("@prisma/client").Prisma.OuraRingConfigUpdateInput)
           : {},
       })
       return "inserted"
