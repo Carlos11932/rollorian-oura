@@ -4,23 +4,26 @@ import { NextRequest, NextResponse } from "next/server"
 import { exchangeCodeForTokens, saveTokens } from "@/lib/oura/oauth"
 
 export async function GET(request: NextRequest) {
+  const origin = request.nextUrl.origin
   const searchParams = request.nextUrl.searchParams
   const code = searchParams.get("code")
   const error = searchParams.get("error")
 
   if (error) {
-    return NextResponse.redirect(`/?error=${encodeURIComponent(error)}`)
+    return NextResponse.redirect(
+      new URL(`/?error=${encodeURIComponent(error)}`, origin),
+    )
   }
 
   if (!code) {
-    return NextResponse.redirect("/?error=missing_code")
+    return NextResponse.redirect(new URL("/?error=missing_code", origin))
   }
 
   const clientId = process.env["OURA_CLIENT_ID"]
   const clientSecret = process.env["OURA_CLIENT_SECRET"]
   const redirectUri =
     process.env["OURA_REDIRECT_URI"] ??
-    `${process.env["NEXTAUTH_URL"]}/api/auth/oura/callback`
+    `${origin}/api/auth/oura/callback`
 
   if (!clientId || !clientSecret) {
     return NextResponse.json(
@@ -37,9 +40,12 @@ export async function GET(request: NextRequest) {
       redirectUri,
     )
     await saveTokens(tokens)
-    return NextResponse.redirect("/dashboard?connected=true")
+    return NextResponse.redirect(new URL("/dashboard?connected=true", origin))
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error"
-    return NextResponse.redirect(`/?error=${encodeURIComponent(message)}`)
+    console.error("[oura/callback] OAuth error:", err)
+    return NextResponse.redirect(
+      new URL(`/?error=${encodeURIComponent(message)}`, origin),
+    )
   }
 }
