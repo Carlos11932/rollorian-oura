@@ -1,0 +1,395 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── OAuth ───────────────────────────────────────────────────────────────────
+
+model OuraOAuthToken {
+  id           String   @id @default(cuid())
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  scope        String
+  tokenType    String   @default("Bearer")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ─── Sleep ───────────────────────────────────────────────────────────────────
+
+model OuraSleepDaily {
+  id                  String    @id @default(cuid())
+  ouraId              String    @unique
+  day                 String    @unique
+  score               Int?
+  totalSleepSeconds   Int?
+  timeInBedSeconds    Int?
+  efficiency          Int?
+  latencySeconds      Int?
+  remSleepSeconds     Int?
+  deepSleepSeconds    Int?
+  lightSleepSeconds   Int?
+  awakeSeconds        Int?
+  restlessPeriods     Int?
+  averageHeartRate    Float?
+  averageHrv          Float?
+  lowestHeartRate     Int?
+  averageBreath       Float?
+  bedtimeStart        DateTime?
+  bedtimeEnd          DateTime?
+  sleepType           String?
+  sleepScoreDelta     Int?
+  contribDeepSleep    Int?
+  contribEfficiency   Int?
+  contribLatency      Int?
+  contribRemSleep     Int?
+  contribRestfulness  Int?
+  contribTiming       Int?
+  contribTotalSleep   Int?
+  lowBatteryAlert     Boolean   @default(false)
+  confidence          String    @default("high")
+  sourceSyncedAt      DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model OuraSleepPeriod {
+  id                 String    @id @default(cuid())
+  ouraId             String    @unique
+  day                String
+  period             Int
+  bedtimeStart       DateTime
+  bedtimeEnd         DateTime
+  sleepType          String
+  heartRateData      Json?
+  hrvData            Json?
+  movementData       String?
+  sleepPhaseData     String?
+  readinessScore     Int?
+  tempDeviation      Float?
+  tempTrendDeviation Float?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([day])
+}
+
+// ─── Readiness ───────────────────────────────────────────────────────────────
+
+model OuraReadinessDaily {
+  id                      String   @id @default(cuid())
+  ouraId                  String   @unique
+  day                     String   @unique
+  score                   Int?
+  temperatureDeviation    Float?
+  temperatureTrendDev     Float?
+  contribActivityBalance  Int?
+  contribBodyTemperature  Int?
+  contribHrvBalance       Int?
+  contribPrevDayActivity  Int?
+  contribPreviousNight    Int?
+  contribRecoveryIndex    Int?
+  contribRestingHeartRate Int?
+  contribSleepBalance     Int?
+  confidence              String   @default("high")
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
+
+// ─── Activity ────────────────────────────────────────────────────────────────
+
+model OuraActivityDaily {
+  id                        String   @id @default(cuid())
+  ouraId                    String   @unique
+  day                       String   @unique
+  score                     Int?
+  steps                     Int?
+  activeCalories            Int?
+  totalCalories             Int?
+  targetCalories            Int?
+  equivalentWalkingDistance Int?
+  highActivitySeconds       Int?
+  mediumActivitySeconds     Int?
+  lowActivitySeconds        Int?
+  sedentarySeconds          Int?
+  restingSeconds            Int?
+  nonWearSeconds            Int?
+  inactivityAlerts          Int?
+  highActivityMet           Float?
+  mediumActivityMet         Float?
+  lowActivityMet            Float?
+  contribMeetTargets        Int?
+  contribMoveEveryHour      Int?
+  contribRecoveryTime       Int?
+  contribStayActive         Int?
+  contribTrainingFrequency  Int?
+  contribTrainingVolume     Int?
+  metData                   Json?
+  classData                 String?
+  wearDurationSeconds       Int?
+  confidence                String   @default("low")
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+}
+
+// ─── Stress & Resilience ─────────────────────────────────────────────────────
+
+model OuraStressDaily {
+  id                  String   @id @default(cuid())
+  ouraId              String   @unique
+  day                 String   @unique
+  stressHighSeconds   Int?
+  recoveryHighSeconds Int?
+  daySummary          String?
+  confidence          String   @default("medium")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model OuraResilienceDaily {
+  id                     String   @id @default(cuid())
+  ouraId                 String   @unique
+  day                    String   @unique
+  level                  String?
+  contribSleepRecovery   Int?
+  contribDaytimeRecovery Int?
+  contribStress          Int?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+// ─── Heart Rate ──────────────────────────────────────────────────────────────
+
+model OuraHeartRateEntry {
+  id        String   @id @default(cuid())
+  timestamp DateTime @unique
+  bpm       Int
+  source    String?
+  day       String
+
+  @@index([day])
+  @@index([timestamp])
+}
+
+// ─── SpO2 / CV Age / VO2 Max ─────────────────────────────────────────────────
+
+model OuraSpo2Daily {
+  id          String   @id @default(cuid())
+  ouraId      String   @unique
+  day         String   @unique
+  spo2Average Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model OuraCardiovascularAge {
+  id          String   @id @default(cuid())
+  day         String   @unique
+  vascularAge Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model OuraVo2Max {
+  id        String   @id @default(cuid())
+  ouraId    String   @unique
+  day       String   @unique
+  vo2Max    Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Workouts & Sessions ─────────────────────────────────────────────────────
+
+model OuraWorkout {
+  id            String    @id @default(cuid())
+  ouraId        String    @unique
+  day           String
+  activity      String?
+  calories      Float?
+  distance      Float?
+  startDatetime DateTime?
+  endDatetime   DateTime?
+  intensity     String?
+  label         String?
+  source        String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([day])
+}
+
+model OuraSession {
+  id              String    @id @default(cuid())
+  ouraId          String    @unique
+  day             String
+  sessionType     String?
+  startDatetime   DateTime?
+  endDatetime     DateTime?
+  mood            String?
+  heartRateData   Json?
+  hrvData         Json?
+  motionCountData Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([day])
+}
+
+// ─── Tags ────────────────────────────────────────────────────────────────────
+
+model OuraTag {
+  id        String    @id @default(cuid())
+  ouraId    String    @unique
+  day       String
+  timestamp DateTime?
+  tags      String[]
+  text      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([day])
+}
+
+model OuraEnhancedTag {
+  id          String    @id @default(cuid())
+  ouraId      String    @unique
+  tagTypeCode String?
+  customName  String?
+  startDay    String
+  endDay      String?
+  startTime   DateTime?
+  endTime     DateTime?
+  comment     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([startDay])
+}
+
+// ─── Sleep Time / Rest Mode / Ring Config ────────────────────────────────────
+
+model OuraSleepTime {
+  id                  String   @id @default(cuid())
+  ouraId              String   @unique
+  day                 String   @unique
+  optimalBedtimeStart Int?
+  optimalBedtimeEnd   Int?
+  optimalBedtimeTz    Int?
+  recommendation      String?
+  status              String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model OuraRestModePeriod {
+  id        String    @id @default(cuid())
+  ouraId    String    @unique
+  startDay  String
+  endDay    String?
+  startTime DateTime?
+  endTime   DateTime?
+  episodes  Json?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model OuraRingConfig {
+  id              String    @id @default(cuid())
+  ouraId          String    @unique
+  color           String?
+  design          String?
+  firmwareVersion String?
+  hardwareType    String?
+  setUpAt         DateTime?
+  size            Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// ─── System ──────────────────────────────────────────────────────────────────
+
+model OuraSyncSession {
+  id              String    @id @default(cuid())
+  startedAt       DateTime  @default(now())
+  finishedAt      DateTime?
+  status          String    @default("running")
+  source          String    @default("donna")
+  endpoints       String[]
+  windowStart     String?
+  windowEnd       String?
+  recordsInserted Int       @default(0)
+  recordsUpdated  Int       @default(0)
+  recordsSkipped  Int       @default(0)
+  errorMessage    String?
+  errorDetails    Json?
+  createdAt       DateTime  @default(now())
+}
+
+// ─── Gaps & Patterns ─────────────────────────────────────────────────────────
+
+model GapPattern {
+  id                  String    @id @default(cuid())
+  label               String
+  typicalStartTime    String
+  typicalEndTime      String
+  typicalDays         Int[]
+  defaultActivityType String?
+  defaultEstCalories  Int?
+  confirmedByUser     Boolean   @default(false)
+  matchCount          Int       @default(0)
+  lastMatchedAt       DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  gaps ActivityGap[]
+}
+
+model ActivityGap {
+  id                String    @id @default(cuid())
+  day               String
+  gapStart          DateTime
+  gapEnd            DateTime
+  durationSeconds   Int
+  inferredType      String    @default("unknown")
+  activityLabel     String?
+  estimatedCalories Int?
+  estimatedBy       String?
+  confidence        String    @default("unknown")
+  rpe               Int?
+  patternId         String?
+  notes             String?
+  resolvedAt        DateTime?
+  resolvedBy        String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  pattern GapPattern? @relation(fields: [patternId], references: [id])
+
+  @@index([day])
+  @@index([patternId])
+}
+
+// ─── Insights ────────────────────────────────────────────────────────────────
+
+model OuraInsight {
+  id             String    @id @default(cuid())
+  day            String
+  insightType    String
+  severity       String
+  title          String
+  message        String
+  metadata       Json?
+  generatedBy    String
+  acknowledged   Boolean   @default(false)
+  acknowledgedAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([day])
+  @@index([insightType])
+}
