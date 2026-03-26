@@ -1,4 +1,5 @@
-import Image from "next/image";
+import Image from "next/image"
+import { SyncNowButton } from "@/features/oura/components/SyncNowButton"
 
 export default function Home() {
   return (
@@ -33,6 +34,7 @@ export default function Home() {
             </a>{" "}
             center.
           </p>
+          <SyncNowButton />
         </div>
         <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
           <a
@@ -61,5 +63,5 @@ export default function Home() {
         </div>
       </main>
     </div>
-  );
+  )
 }
