@@ -27,6 +27,20 @@ function toJsonValue(value: unknown): Prisma.InputJsonValue | undefined {
 
 // ─── Normalizers ─────────────────────────────────────────────────────────────
 
+export function normalizePersonalInfo(
+  raw: Record<string, unknown>,
+): Prisma.OuraPersonalInfoCreateInput | null {
+  if (!raw["id"]) return null
+  return {
+    ouraId: String(raw["id"]),
+    age: toInt(raw["age"]),
+    weight: toFloat(raw["weight"]),
+    height: toFloat(raw["height"]),
+    biologicalSex: raw["biological_sex"] ? String(raw["biological_sex"]) : null,
+    email: raw["email"] ? String(raw["email"]) : null,
+  }
+}
+
 export function normalizeSleepDaily(
   raw: Record<string, unknown>,
 ): Prisma.OuraSleepDailyCreateInput | null {
@@ -351,6 +365,7 @@ export type NormalizerFn = (
 ) => Record<string, unknown> | null
 
 export const NORMALIZERS: Partial<Record<string, NormalizerFn>> = {
+  personal_info: normalizePersonalInfo as NormalizerFn,
   daily_sleep: normalizeSleepDaily as NormalizerFn,
   sleep: normalizeSleepPeriod as NormalizerFn,
   daily_readiness: normalizeReadinessDaily as NormalizerFn,
