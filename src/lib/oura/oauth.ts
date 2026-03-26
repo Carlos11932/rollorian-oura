@@ -15,7 +15,7 @@ export function buildAuthorizationUrl(
   url.searchParams.set("redirect_uri", redirectUri)
   url.searchParams.set(
     "scope",
-    "daily heartrate workout tag session spo2 personal",
+    "daily heartrate workout tag session spo2 personal stress heart_health ring_configuration",
   )
   url.searchParams.set("state", state)
   return url.toString()
