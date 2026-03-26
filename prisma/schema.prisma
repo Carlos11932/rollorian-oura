@@ -19,6 +19,20 @@ model OuraOAuthToken {
   updatedAt    DateTime @updatedAt
 }
 
+// ─── Personal Info ───────────────────────────────────────────────────────────
+
+model OuraPersonalInfo {
+  id            String   @id @default(cuid())
+  ouraId        String   @unique
+  age           Int?
+  weight        Float?
+  height        Float?
+  biologicalSex String?
+  email         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
 // ─── Sleep ───────────────────────────────────────────────────────────────────
 
 model OuraSleepDaily {
