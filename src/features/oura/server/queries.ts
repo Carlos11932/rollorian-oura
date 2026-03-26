@@ -19,7 +19,7 @@ export function getDateRange(period: Period): { startDate: string; endDate: stri
 
   const start = new Date(now);
   if (period === "1d") {
-    start.setDate(start.getDate() - 1);
+    // today only — no offset needed
   } else if (period === "7d") {
     start.setDate(start.getDate() - 7);
   } else if (period === "1m") {
