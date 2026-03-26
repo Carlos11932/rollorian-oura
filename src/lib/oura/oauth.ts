@@ -35,14 +35,16 @@ export async function exchangeCodeForTokens(
   clientSecret: string,
   redirectUri: string,
 ): Promise<OuraTokenResponse> {
+  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64")
   const res = await fetch(OURA_TOKEN_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: `Basic ${credentials}`,
+    },
     body: new URLSearchParams({
       grant_type: "authorization_code",
       code,
-      client_id: clientId,
-      client_secret: clientSecret,
       redirect_uri: redirectUri,
     }),
   })
@@ -100,14 +102,16 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
     throw new Error("Oura credentials not configured")
   }
 
+  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64")
   const res = await fetch(OURA_TOKEN_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: `Basic ${credentials}`,
+    },
     body: new URLSearchParams({
       grant_type: "refresh_token",
       refresh_token: refreshToken,
-      client_id: clientId,
-      client_secret: clientSecret,
     }),
   })
 
