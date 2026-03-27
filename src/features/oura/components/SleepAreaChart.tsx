@@ -19,11 +19,11 @@ interface SleepAreaChartProps {
 }
 
 const COLORS = {
-  deep: "var(--color-emerald-800)",
-  rem: "var(--color-emerald-500)",
-  light: "var(--color-emerald-200)",
-  gridLine: "var(--color-emerald-900)",
-  text: "var(--color-emerald-400)",
+  deep: "#065f46",
+  rem: "#10b981",
+  light: "#a7f3d0",
+  gridLine: "#064e3b",
+  text: "#34d399",
 };
 
 interface TooltipPayloadEntry {
@@ -75,6 +75,17 @@ export function SleepAreaChart({ data, onDayClick }: SleepAreaChartProps) {
     }
   }
 
+  const hasBreakdown = data.some((d) => d.deep > 0 || d.rem > 0 || d.light > 0);
+  const hasAnyData = data.some((d) => d.totalHours > 0);
+
+  if (!hasAnyData) {
+    return (
+      <div className="flex h-[220px] items-center justify-center text-sm text-emerald-700">
+        Sin datos de sueño
+      </div>
+    );
+  }
+
   return (
     <ResponsiveContainer width="100%" height={220}>
       <AreaChart
@@ -118,30 +129,42 @@ export function SleepAreaChart({ data, onDayClick }: SleepAreaChartProps) {
           tickFormatter={(val: number) => `${val}h`}
         />
         <Tooltip content={<CustomTooltip />} />
-        <Area
-          type="monotone"
-          dataKey="deep"
-          stackId="1"
-          stroke={COLORS.deep}
-          fill="url(#deepGrad)"
-          strokeWidth={1.5}
-        />
-        <Area
-          type="monotone"
-          dataKey="rem"
-          stackId="1"
-          stroke={COLORS.rem}
-          fill="url(#remGrad)"
-          strokeWidth={1.5}
-        />
-        <Area
-          type="monotone"
-          dataKey="light"
-          stackId="1"
-          stroke={COLORS.light}
-          fill="url(#lightGrad)"
-          strokeWidth={1.5}
-        />
+        {hasBreakdown ? (
+          <>
+            <Area
+              type="monotone"
+              dataKey="deep"
+              stackId="1"
+              stroke={COLORS.deep}
+              fill="url(#deepGrad)"
+              strokeWidth={1.5}
+            />
+            <Area
+              type="monotone"
+              dataKey="rem"
+              stackId="1"
+              stroke={COLORS.rem}
+              fill="url(#remGrad)"
+              strokeWidth={1.5}
+            />
+            <Area
+              type="monotone"
+              dataKey="light"
+              stackId="1"
+              stroke={COLORS.light}
+              fill="url(#lightGrad)"
+              strokeWidth={1.5}
+            />
+          </>
+        ) : (
+          <Area
+            type="monotone"
+            dataKey="totalHours"
+            stroke={COLORS.rem}
+            fill="url(#remGrad)"
+            strokeWidth={1.5}
+          />
+        )}
       </AreaChart>
     </ResponsiveContainer>
   );

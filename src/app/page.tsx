@@ -91,7 +91,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           </div>
           <div className="flex flex-col items-center rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
             <h2 className="mb-2 text-sm font-semibold text-emerald-300 uppercase tracking-wide">
-              Eficiencia
+              Eficiencia del sueño
             </h2>
             <EfficiencyGauge efficiency={latestEfficiency} />
           </div>
@@ -191,7 +191,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             </div>
             <div className="flex flex-col items-center rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
               <h2 className="mb-2 text-sm font-semibold text-emerald-300 uppercase tracking-wide">
-                Eficiencia
+                Eficiencia del sueño
               </h2>
               <EfficiencyGauge efficiency={latestEfficiency} />
               <p className="mt-1 text-xs text-emerald-600">
@@ -210,7 +210,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               dataKey="restingHR"
               label="FC en reposo"
               unit=" bpm"
-              color="var(--color-emerald-400)"
+              color="#34d399"
             />
           </div>
 
@@ -221,7 +221,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               dataKey="cardioAge"
               label="Edad cardiovascular"
               unit=" años"
-              color="var(--color-teal-400)"
+              color="#2dd4bf"
             />
           </div>
 
