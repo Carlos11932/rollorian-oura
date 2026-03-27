@@ -218,10 +218,15 @@ interface OuraHeartRateData {
 export async function getSleepIntradayData(
   date: string,
 ): Promise<SleepIntradayPoint[]> {
-  const record = await prisma.ouraSleepPeriod.findFirst({
+  const records = await prisma.ouraSleepPeriod.findMany({
     where: { day: date },
-    select: { heartRateData: true },
+    select: { heartRateData: true, sleepType: true },
   });
+
+  // Prefer long_sleep period, fallback to any period with HR data
+  const record =
+    records.find((r) => r.sleepType === "long_sleep" && r.heartRateData) ??
+    records.find((r) => r.heartRateData);
 
   if (!record?.heartRateData) return [];
 
