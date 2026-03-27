@@ -12,7 +12,7 @@ interface SyncResult {
 export async function triggerManualSync(): Promise<SyncResult> {
   const today = new Date();
   const endDate = format(today, "yyyy-MM-dd");
-  const startDate = format(subDays(today, 1), "yyyy-MM-dd");
+  const startDate = format(subDays(today, 30), "yyyy-MM-dd");
 
   try {
     const result = await syncEndpoints({
