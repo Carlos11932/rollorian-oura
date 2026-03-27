@@ -75,14 +75,14 @@ export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
   daily_resilience: {
     path: "daily_resilience",
     dateParamType: "date",
-    scope: "daily",
+    scope: "stress",
     requiresChunking: false,
     isPaginated: true,
   },
   daily_cardiovascular_age: {
     path: "daily_cardiovascular_age",
     dateParamType: "date",
-    scope: "daily",
+    scope: "heart_health",
     requiresChunking: false,
     isPaginated: true,
   },
@@ -153,7 +153,7 @@ export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
   ring_configuration: {
     path: "ring_configuration",
     dateParamType: "none",
-    scope: "personal",
+    scope: "ring_configuration",
     requiresChunking: false,
     isPaginated: false,
   },
@@ -171,7 +171,6 @@ export const DAILY_SYNC_ENDPOINTS: EndpointKey[] = [
   "daily_resilience",
   "daily_spo2",
   "daily_cardiovascular_age",
-  "vo2_max",
   "sleep",
   "sleep_time",
   "heartrate",

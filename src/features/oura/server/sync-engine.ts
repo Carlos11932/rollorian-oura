@@ -169,6 +169,17 @@ async function upsertRecord(
   const timestamp = data["timestamp"] as Date | undefined
 
   switch (endpoint) {
+    case "personal_info":
+      if (!ouraId) return "skipped"
+      await prisma.ouraPersonalInfo.upsert({
+        where: { ouraId },
+        create: data as import("@prisma/client").Prisma.OuraPersonalInfoCreateInput,
+        update: force
+          ? (data as import("@prisma/client").Prisma.OuraPersonalInfoUpdateInput)
+          : {},
+      })
+      return force ? "updated" : "inserted"
+
     case "daily_sleep":
       if (!ouraId) return "skipped"
       await prisma.ouraSleepDaily.upsert({

@@ -1,65 +1,279 @@
-import Image from "next/image";
+import { Suspense } from "react";
+import {
+  getSleepChartData,
+  getMetricsData,
+  getIntradayHeartRate,
+  type Period,
+} from "@/features/oura/server/queries";
+import { SleepAreaChart } from "@/features/oura/components/SleepAreaChart";
+import { DrillDownWrapper } from "@/features/oura/components/DrillDownWrapper";
+import { SleepScoreGauge } from "@/features/oura/components/SleepScoreGauge";
+import { EfficiencyGauge } from "@/features/oura/components/EfficiencyGauge";
+import { MetricLineChart } from "@/features/oura/components/MetricLineChart";
+import { IntradayHRChart } from "@/features/oura/components/IntradayHRChart";
+import { PeriodSelector } from "@/features/oura/components/PeriodSelector";
+import { SyncButton } from "@/features/oura/components/SyncButton";
+import { format } from "date-fns";
 
-export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+const VALID_PERIODS = ["1d", "7d", "14d", "30d", "90d"] as const;
+type ValidPeriod = (typeof VALID_PERIODS)[number];
+
+function isValidPeriod(value: string | undefined): value is ValidPeriod {
+  return VALID_PERIODS.includes(value as ValidPeriod);
+}
+
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function DashboardPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+
+  const rawPeriod =
+    typeof params["period"] === "string" ? params["period"] : undefined;
+  const rawDate =
+    typeof params["date"] === "string" ? params["date"] : undefined;
+
+  const period: Period = isValidPeriod(rawPeriod) ? rawPeriod : "7d";
+  const selectedDate: string | undefined =
+    rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : undefined;
+
+  const today = format(new Date(), "yyyy-MM-dd");
+
+  if (period === "1d") {
+    const targetDate = selectedDate ?? today;
+
+    const [sleepData, metricsData, intradayData] = await Promise.all([
+      getSleepChartData("1d", targetDate),
+      getMetricsData("1d", targetDate),
+      getIntradayHeartRate(targetDate),
+    ]);
+
+    const daySleep = sleepData.at(0);
+    const latestScore = daySleep?.score ?? null;
+    const latestEfficiency = daySleep?.efficiency ?? null;
+
+    return (
+      <div className="min-h-screen bg-emerald-950/20 p-4 md:p-6">
+        {/* Header */}
+        <header className="mb-6 flex items-center justify-between">
+          <h1 className="text-xl font-bold text-emerald-100 tracking-tight">
+            Rollorian Oura
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+          <div className="flex items-center gap-3">
+            <Suspense>
+              <PeriodSelector current={period} />
+            </Suspense>
+            <SyncButton />
+          </div>
+        </header>
+
+        {/* Day view label */}
+        <p className="mb-4 text-sm text-emerald-500">
+          Vista: {targetDate}
+        </p>
+
+        {/* Main Grid */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          {/* Sleep Column — 2/3 width */}
+          <div className="flex flex-col gap-4 lg:col-span-2">
+            {/* Sleep Area Chart (single day, no drill-down) */}
+            <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
+              <h2 className="mb-3 text-sm font-semibold text-emerald-300 uppercase tracking-wide">
+                Sueño — ciclos
+              </h2>
+              <SleepAreaChart data={sleepData} />
+              {/* Legend */}
+              <div className="mt-2 flex items-center gap-4 text-xs text-emerald-500">
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-800" />
+                  Profundo
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+                  REM
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-200" />
+                  Ligero
+                </span>
+              </div>
+            </div>
+
+            {/* Score + Efficiency Gauges */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col items-center rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
+                <h2 className="mb-2 text-sm font-semibold text-emerald-300 uppercase tracking-wide">
+                  Sleep Score
+                </h2>
+                <SleepScoreGauge score={latestScore} />
+                <p className="mt-1 text-xs text-emerald-600">
+                  Día seleccionado
+                </p>
+              </div>
+              <div className="flex flex-col items-center rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
+                <h2 className="mb-2 text-sm font-semibold text-emerald-300 uppercase tracking-wide">
+                  Eficiencia
+                </h2>
+                <EfficiencyGauge efficiency={latestEfficiency} />
+                <p className="mt-1 text-xs text-emerald-600">
+                  Día seleccionado
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Metrics Column — 1/3 width */}
+          <div className="flex flex-col gap-4">
+            <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
+              <MetricLineChart
+                data={metricsData}
+                dataKey="restingHR"
+                label="FC en reposo"
+                unit=" bpm"
+                color="var(--color-emerald-400)"
+              />
+            </div>
+            <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
+              <MetricLineChart
+                data={metricsData}
+                dataKey="cardioAge"
+                label="Edad cardiovascular"
+                unit=" años"
+                color="var(--color-teal-400)"
+              />
+            </div>
+            <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
+              <MetricLineChart
+                data={metricsData}
+                dataKey="stressHigh"
+                label="Estrés alto"
+                unit=" min"
+                color="#f87171"
+              />
+            </div>
+            <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
+              <IntradayHRChart data={intradayData} />
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+      </div>
+    );
+  }
+
+  // ─── Multi-day view ─────────────────────────────────────────────────────────
+
+  const [sleepData, metricsData] = await Promise.all([
+    getSleepChartData(period),
+    getMetricsData(period),
+  ]);
+
+  // Latest sleep record for gauges
+  const latestSleep = sleepData.at(-1);
+  const latestScore = latestSleep?.score ?? null;
+  const latestEfficiency = latestSleep?.efficiency ?? null;
+
+  return (
+    <div className="min-h-screen bg-emerald-950/20 p-4 md:p-6">
+      {/* Header */}
+      <header className="mb-6 flex items-center justify-between">
+        <h1 className="text-xl font-bold text-emerald-100 tracking-tight">
+          Rollorian Oura
+        </h1>
+        <div className="flex items-center gap-3">
+          <Suspense>
+            <PeriodSelector current={period} />
+          </Suspense>
+          <SyncButton />
+        </div>
+      </header>
+
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {/* Sleep Column — 2/3 width */}
+        <div className="flex flex-col gap-4 lg:col-span-2">
+          {/* Sleep Area Chart with drill-down */}
+          <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
+            <h2 className="mb-3 text-sm font-semibold text-emerald-300 uppercase tracking-wide">
+              Sueño — ciclos
+            </h2>
+            <DrillDownWrapper data={sleepData} />
+            {/* Legend */}
+            <div className="mt-2 flex items-center gap-4 text-xs text-emerald-500">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-2 w-2 rounded-full bg-emerald-800" />
+                Profundo
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+                REM
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-2 w-2 rounded-full bg-emerald-200" />
+                Ligero
+              </span>
+            </div>
+          </div>
+
+          {/* Score + Efficiency Gauges */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col items-center rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
+              <h2 className="mb-2 text-sm font-semibold text-emerald-300 uppercase tracking-wide">
+                Sleep Score
+              </h2>
+              <SleepScoreGauge score={latestScore} />
+              <p className="mt-1 text-xs text-emerald-600">
+                Última noche registrada
+              </p>
+            </div>
+            <div className="flex flex-col items-center rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
+              <h2 className="mb-2 text-sm font-semibold text-emerald-300 uppercase tracking-wide">
+                Eficiencia
+              </h2>
+              <EfficiencyGauge efficiency={latestEfficiency} />
+              <p className="mt-1 text-xs text-emerald-600">
+                Última noche registrada
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Metrics Column — 1/3 width */}
+        <div className="flex flex-col gap-4">
+          {/* Resting HR */}
+          <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
+            <MetricLineChart
+              data={metricsData}
+              dataKey="restingHR"
+              label="FC en reposo"
+              unit=" bpm"
+              color="var(--color-emerald-400)"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </div>
+
+          {/* Cardio Age */}
+          <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
+            <MetricLineChart
+              data={metricsData}
+              dataKey="cardioAge"
+              label="Edad cardiovascular"
+              unit=" años"
+              color="var(--color-teal-400)"
+            />
+          </div>
+
+          {/* Stress Line Chart */}
+          <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
+            <MetricLineChart
+              data={metricsData}
+              dataKey="stressHigh"
+              label="Estrés alto"
+              unit=" min"
+              color="#f87171"
+            />
+          </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
