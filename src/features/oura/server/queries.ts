@@ -1,145 +1,138 @@
+import "server-only";
 import { prisma } from "@/lib/prisma";
+import { subDays, format } from "date-fns";
 
-// ─── Period types ─────────────────────────────────────────────────────────────
+// ─── Period ───────────────────────────────────────────────────────────────────
 
 const PERIOD = {
-  ONE_DAY: "1d",
-  SEVEN_DAYS: "7d",
-  ONE_MONTH: "1m",
-  ONE_YEAR: "1a",
+  "7d": 7,
+  "14d": 14,
+  "30d": 30,
+  "90d": 90,
 } as const;
 
-export type Period = (typeof PERIOD)[keyof typeof PERIOD];
+export type Period = keyof typeof PERIOD;
 
-// ─── Date range helper ────────────────────────────────────────────────────────
-
-export function getDateRange(period: Period): { startDate: string; endDate: string } {
-  const now = new Date();
-  const endDate = now.toISOString().slice(0, 10);
-
-  const start = new Date(now);
-  if (period === "1d") {
-    // today only — no offset needed
-  } else if (period === "7d") {
-    start.setDate(start.getDate() - 7);
-  } else if (period === "1m") {
-    start.setMonth(start.getMonth() - 1);
-  } else if (period === "1a") {
-    start.setFullYear(start.getFullYear() - 1);
-  }
-
-  const startDate = start.toISOString().slice(0, 10);
-  return { startDate, endDate };
+function getDateRange(period: Period): { start: string; end: string } {
+  const end = new Date();
+  const start = subDays(end, PERIOD[period]);
+  return {
+    start: format(start, "yyyy-MM-dd"),
+    end: format(end, "yyyy-MM-dd"),
+  };
 }
 
-function avg(values: (number | null | undefined)[]): number | null {
-  const filtered = values.filter((v): v is number => v != null);
-  if (filtered.length === 0) return null;
-  return Math.round(filtered.reduce((a, b) => a + b, 0) / filtered.length);
-}
+// ─── Sleep Chart Data ─────────────────────────────────────────────────────────
 
-// ─── Sleep data ───────────────────────────────────────────────────────────────
-
-export interface SleepTrendPoint {
-  date: string;
-  value: number;
-}
-
-export interface SleepData {
-  score: number | null;
-  hrv: number | null;
-  hours: number | null;
+export interface SleepChartPoint {
+  day: string;
+  totalHours: number;
+  deep: number;
+  light: number;
+  rem: number;
   efficiency: number | null;
-  deepSleep: number | null;
-  rem: number | null;
-  trend: SleepTrendPoint[];
+  score: number | null;
 }
 
-export async function getSleepData(period: Period): Promise<SleepData> {
-  const { startDate, endDate } = getDateRange(period);
+export async function getSleepChartData(
+  period: Period,
+): Promise<SleepChartPoint[]> {
+  const { start, end } = getDateRange(period);
 
-  const records = await prisma.ouraSleepDaily.findMany({
+  const rows = await prisma.ouraSleepDaily.findMany({
     where: {
-      day: {
-        gte: startDate,
-        lte: endDate,
-      },
+      day: { gte: start, lte: end },
     },
-    orderBy: { day: "asc" },
     select: {
       day: true,
-      score: true,
       totalSleepSeconds: true,
-      efficiency: true,
-      remSleepSeconds: true,
       deepSleepSeconds: true,
-      averageHrv: true,
+      lightSleepSeconds: true,
+      remSleepSeconds: true,
+      efficiency: true,
+      score: true,
     },
+    orderBy: { day: "asc" },
   });
 
-  const trend: SleepTrendPoint[] = records
-    .filter((r) => r.score != null)
-    .map((r) => ({ date: r.day, value: r.score as number }));
-
-  const score = avg(records.map((r) => r.score));
-  const hrv = avg(records.map((r) => r.averageHrv));
-  const hoursRaw = avg(records.map((r) => r.totalSleepSeconds));
-  const hours = hoursRaw != null ? Math.round((hoursRaw / 3600) * 10) / 10 : null;
-  const efficiency = avg(records.map((r) => r.efficiency));
-  const deepSleep = avg(records.map((r) =>
-    r.deepSleepSeconds != null ? Math.round(r.deepSleepSeconds / 60) : null,
-  ));
-  const rem = avg(records.map((r) =>
-    r.remSleepSeconds != null ? Math.round(r.remSleepSeconds / 60) : null,
-  ));
-
-  return { score, hrv, hours, efficiency, deepSleep, rem, trend };
+  return rows.map((row) => ({
+    day: row.day,
+    totalHours: row.totalSleepSeconds ? row.totalSleepSeconds / 3600 : 0,
+    deep: row.deepSleepSeconds ? row.deepSleepSeconds / 3600 : 0,
+    light: row.lightSleepSeconds ? row.lightSleepSeconds / 3600 : 0,
+    rem: row.remSleepSeconds ? row.remSleepSeconds / 3600 : 0,
+    efficiency: row.efficiency ?? null,
+    score: row.score ?? null,
+  }));
 }
 
-// ─── Recovery data ────────────────────────────────────────────────────────────
+// ─── Metrics Data ─────────────────────────────────────────────────────────────
 
-export interface RecoveryTrendPoint {
-  date: string;
-  value: number;
-}
-
-export interface RecoveryData {
-  readiness: number | null;
+export interface MetricsPoint {
+  day: string;
   restingHR: number | null;
-  resilience: string | null;
-  trend: RecoveryTrendPoint[];
+  cardioAge: number | null;
+  stressHigh: number | null;
+  recoveryHigh: number | null;
+  [key: string]: string | number | null;
 }
 
-export async function getRecoveryData(period: Period): Promise<RecoveryData> {
-  const { startDate, endDate } = getDateRange(period);
+export async function getMetricsData(period: Period): Promise<MetricsPoint[]> {
+  const { start, end } = getDateRange(period);
 
-  const [readinessRecords, sleepRecords, resilienceRecords] = await Promise.all([
-    prisma.ouraReadinessDaily.findMany({
-      where: { day: { gte: startDate, lte: endDate } },
-      orderBy: { day: "asc" },
-      select: { day: true, score: true },
-    }),
+  const [sleepRows, cardioRows, stressRows] = await Promise.all([
     prisma.ouraSleepDaily.findMany({
-      where: { day: { gte: startDate, lte: endDate } },
-      orderBy: { day: "desc" },
-      select: { lowestHeartRate: true },
-      take: 1,
+      where: { day: { gte: start, lte: end } },
+      select: { day: true, lowestHeartRate: true },
+      orderBy: { day: "asc" },
     }),
-    prisma.ouraResilienceDaily.findMany({
-      where: { day: { gte: startDate, lte: endDate } },
-      orderBy: { day: "desc" },
-      select: { level: true },
-      take: 1,
+    prisma.ouraCardiovascularAge.findMany({
+      where: { day: { gte: start, lte: end } },
+      select: { day: true, vascularAge: true },
+      orderBy: { day: "asc" },
+    }),
+    prisma.ouraStressDaily.findMany({
+      where: { day: { gte: start, lte: end } },
+      select: { day: true, stressHighSeconds: true, recoveryHighSeconds: true },
+      orderBy: { day: "asc" },
     }),
   ]);
 
-  const trend: RecoveryTrendPoint[] = readinessRecords
-    .filter((r) => r.score != null)
-    .map((r) => ({ date: r.day, value: r.score as number }));
+  // Build maps for fast lookups
+  const cardioMap = new Map<string, number | null>(
+    cardioRows.map((r) => [r.day, r.vascularAge ?? null]),
+  );
+  const stressMap = new Map<
+    string,
+    { stressHigh: number | null; recoveryHigh: number | null }
+  >(
+    stressRows.map((r) => [
+      r.day,
+      {
+        stressHigh: r.stressHighSeconds ? r.stressHighSeconds / 60 : null,
+        recoveryHigh: r.recoveryHighSeconds
+          ? r.recoveryHighSeconds / 60
+          : null,
+      },
+    ]),
+  );
 
-  const readiness = avg(readinessRecords.map((r) => r.score));
-  const restingHR = sleepRecords[0]?.lowestHeartRate ?? null;
-  const resilience = resilienceRecords[0]?.level ?? null;
+  // Collect all days from sleep (main driver)
+  const allDays = new Set<string>(sleepRows.map((r) => r.day));
+  cardioRows.forEach((r) => allDays.add(r.day));
+  stressRows.forEach((r) => allDays.add(r.day));
 
-  return { readiness, restingHR, resilience, trend };
+  const sortedDays = Array.from(allDays).sort();
+
+  const sleepMap = new Map<string, number | null>(
+    sleepRows.map((r) => [r.day, r.lowestHeartRate ?? null]),
+  );
+
+  return sortedDays.map((day) => ({
+    day,
+    restingHR: sleepMap.get(day) ?? null,
+    cardioAge: cardioMap.get(day) ?? null,
+    stressHigh: stressMap.get(day)?.stressHigh ?? null,
+    recoveryHigh: stressMap.get(day)?.recoveryHigh ?? null,
+  }));
 }
