@@ -63,7 +63,7 @@ export function IntradayHRChart({ data }: IntradayHRChartProps) {
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs font-medium text-emerald-400 uppercase tracking-wide">
-        FC — estrés intraday
+        FC intraday
       </p>
       <ResponsiveContainer width="100%" height={100}>
         <LineChart data={data} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>

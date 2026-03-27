@@ -43,8 +43,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   if (period === "1d") {
     const targetDate = selectedDate ?? today;
 
-    const [sleepData, intradayData] = await Promise.all([
+    const [sleepData, metricsData, intradayData] = await Promise.all([
       getSleepChartData("1d", targetDate),
+      getMetricsData("1d", targetDate),
       getIntradayHeartRate(targetDate),
     ]);
 
@@ -122,12 +123,36 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             </div>
           </div>
 
-          {/* Intraday HR Column — 1/3 width */}
+          {/* Metrics Column — 1/3 width */}
           <div className="flex flex-col gap-4">
             <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
-              <h2 className="mb-3 text-sm font-semibold text-emerald-300 uppercase tracking-wide">
-                Frecuencia cardíaca intraday
-              </h2>
+              <MetricLineChart
+                data={metricsData}
+                dataKey="restingHR"
+                label="FC en reposo"
+                unit=" bpm"
+                color="var(--color-emerald-400)"
+              />
+            </div>
+            <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
+              <MetricLineChart
+                data={metricsData}
+                dataKey="cardioAge"
+                label="Edad cardiovascular"
+                unit=" años"
+                color="var(--color-teal-400)"
+              />
+            </div>
+            <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
+              <MetricLineChart
+                data={metricsData}
+                dataKey="stressHigh"
+                label="Estrés alto"
+                unit=" min"
+                color="#f87171"
+              />
+            </div>
+            <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
               <IntradayHRChart data={intradayData} />
             </div>
           </div>
