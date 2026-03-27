@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { subDays, format } from "date-fns";
 
 // ─── Period ───────────────────────────────────────────────────────────────────
@@ -215,7 +216,7 @@ export async function getSleepIntradayData(
   const record = await prisma.ouraSleepPeriod.findFirst({
     where: {
       day: date,
-      NOT: { heartRateData: null },
+      NOT: { heartRateData: Prisma.AnyNull },
     },
     select: { heartRateData: true },
   });
