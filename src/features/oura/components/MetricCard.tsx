@@ -1,6 +1,5 @@
 
 import { cn } from "@/lib/cn";
-import { Sparkline } from "./Sparkline";
 
 const COLOR_MAP = {
   primary: {
@@ -74,15 +73,6 @@ export function MetricCard({
         )}
       </div>
 
-      {trend && trend.length >= 2 && (
-        <div className="absolute bottom-0 left-0 right-0 h-16 opacity-60">
-          <Sparkline
-            data={trend}
-            color={colors.sparklineColor}
-            className="w-full h-full"
-          />
-        </div>
-      )}
     </div>
   );
 }
