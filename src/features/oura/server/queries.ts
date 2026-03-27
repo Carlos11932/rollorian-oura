@@ -155,39 +155,44 @@ export async function getMetricsData(
 // ─── Intraday Heart Rate ───────────────────────────────────────────────────────
 
 export interface StressIntradayPoint {
-  hour: number;
+  hour: string; // "HH:MM"
   bpm: number;
 }
 
 export async function getIntradayHeartRate(
   date: string,
 ): Promise<StressIntradayPoint[]> {
+  // Expand window ±14h around UTC midnight to handle any timezone offset
+  const dayStart = new Date(`${date}T00:00:00.000Z`);
+  const gte = new Date(dayStart.getTime() - 14 * 60 * 60 * 1000);
+  const lte = new Date(dayStart.getTime() + 38 * 60 * 60 * 1000);
+
   const entries = await prisma.ouraHeartRateEntry.findMany({
-    where: {
-      timestamp: {
-        gte: new Date(`${date}T00:00:00.000Z`),
-        lte: new Date(`${date}T23:59:59.999Z`),
-      },
-    },
-    select: {
-      bpm: true,
-      timestamp: true,
-    },
+    where: { timestamp: { gte, lte } },
+    select: { bpm: true, timestamp: true },
+    orderBy: { timestamp: "asc" },
   });
 
   if (entries.length === 0) return [];
 
-  const hourMap = new Map<number, number[]>();
+  // Group by local hour using 5-min buckets for better resolution
+  const bucketMap = new Map<string, number[]>();
   for (const entry of entries) {
-    const hour = entry.timestamp.getUTCHours();
-    if (!hourMap.has(hour)) hourMap.set(hour, []);
-    hourMap.get(hour)!.push(entry.bpm);
+    // Round down to 5-minute bucket, keep as HH:MM label
+    const totalMinutes =
+      entry.timestamp.getUTCHours() * 60 + entry.timestamp.getUTCMinutes();
+    const bucketMinutes = Math.floor(totalMinutes / 5) * 5;
+    const hh = String(Math.floor(bucketMinutes / 60)).padStart(2, "0");
+    const mm = String(bucketMinutes % 60).padStart(2, "0");
+    const key = `${hh}:${mm}`;
+    if (!bucketMap.has(key)) bucketMap.set(key, []);
+    bucketMap.get(key)!.push(entry.bpm);
   }
 
-  return Array.from(hourMap.entries())
-    .map(([hour, bpms]) => ({
-      hour,
+  return Array.from(bucketMap.entries())
+    .map(([time, bpms]) => ({
+      hour: time, // "HH:MM" string
       bpm: Math.round(bpms.reduce((sum, v) => sum + v, 0) / bpms.length),
     }))
-    .sort((a, b) => a.hour - b.hour);
+    .sort((a, b) => a.hour.localeCompare(b.hour));
 }

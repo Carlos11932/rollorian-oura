@@ -1,8 +1,8 @@
 "use client";
 
 import {
-  AreaChart,
-  Area,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -15,97 +15,89 @@ interface IntradayHRChartProps {
   data: StressIntradayPoint[];
 }
 
-const COLORS = {
-  area: "var(--color-emerald-500)",
+const CHART_COLORS = {
+  line: "var(--color-emerald-400)",
   gridLine: "var(--color-emerald-900)",
   text: "var(--color-emerald-400)",
 };
 
-const HOUR_LABELS: Record<number, string> = {
-  0: "0h",
-  6: "6h",
-  12: "12h",
-  18: "18h",
-  23: "23h",
-};
-
-interface TooltipPayloadEntry {
-  value: number;
-  payload: StressIntradayPoint;
+interface TooltipEntry {
+  value: number | null;
 }
 
 interface CustomTooltipProps {
   active?: boolean;
-  payload?: TooltipPayloadEntry[];
+  payload?: TooltipEntry[];
+  label?: string;
 }
 
-function CustomTooltip({ active, payload }: CustomTooltipProps) {
-  if (!active || !payload?.length) return null;
-
-  const { hour, bpm } = payload[0].payload;
-  const hourStr = String(hour).padStart(2, "0");
-
+function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
+  if (!active || !payload?.length || !label) return null;
   return (
     <div className="rounded-lg border border-emerald-800 bg-emerald-950 p-3 text-xs shadow-lg">
-      <p className="font-medium text-emerald-300">
-        {hourStr}:00 — {bpm} bpm
+      <p className="mb-1 font-medium text-emerald-300">{label}</p>
+      <p className="font-mono text-white">
+        {payload[0]?.value != null ? `${payload[0].value} bpm` : "–"}
       </p>
     </div>
   );
 }
 
-function formatHourTick(value: number): string {
-  return HOUR_LABELS[value] ?? "";
+function formatTick(value: string): string {
+  return value.endsWith(":00") ? value : "";
 }
 
 export function IntradayHRChart({ data }: IntradayHRChartProps) {
   if (data.length === 0) {
     return (
-      <div className="flex h-[160px] items-center justify-center text-sm text-emerald-600">
-        Sin datos para este día
+      <div className="flex h-[100px] items-center justify-center text-sm text-emerald-600">
+        Sin datos — usa el botón Sincronizar
       </div>
     );
   }
 
+  const bpms = data.map((d) => d.bpm);
+  const minBpm = Math.max(0, Math.min(...bpms) - 10);
+  const maxBpm = Math.max(...bpms) + 10;
+
   return (
-    <ResponsiveContainer width="100%" height={160}>
-      <AreaChart data={data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-        <defs>
-          <linearGradient id="hrGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor={COLORS.area} stopOpacity={0.7} />
-            <stop offset="95%" stopColor={COLORS.area} stopOpacity={0.1} />
-          </linearGradient>
-        </defs>
-        <CartesianGrid
-          strokeDasharray="3 3"
-          stroke={COLORS.gridLine}
-          vertical={false}
-        />
-        <XAxis
-          dataKey="hour"
-          tick={{ fill: COLORS.text, fontSize: 11 }}
-          tickLine={false}
-          axisLine={false}
-          tickFormatter={formatHourTick}
-          ticks={[0, 6, 12, 18, 23]}
-        />
-        <YAxis
-          tick={{ fill: COLORS.text, fontSize: 11 }}
-          tickLine={false}
-          axisLine={false}
-          domain={[40, 120]}
-          tickFormatter={(val: number) => `${val}`}
-        />
-        <Tooltip content={<CustomTooltip />} />
-        <Area
-          type="monotone"
-          dataKey="bpm"
-          stroke={COLORS.area}
-          fill="url(#hrGrad)"
-          strokeWidth={1.5}
-          dot={false}
-        />
-      </AreaChart>
-    </ResponsiveContainer>
+    <div className="flex flex-col gap-2">
+      <p className="text-xs font-medium text-emerald-400 uppercase tracking-wide">
+        FC — estrés intraday
+      </p>
+      <ResponsiveContainer width="100%" height={100}>
+        <LineChart data={data} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke={CHART_COLORS.gridLine}
+            vertical={false}
+          />
+          <XAxis
+            dataKey="hour"
+            tick={{ fill: CHART_COLORS.text, fontSize: 10 }}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={formatTick}
+            interval={11}
+          />
+          <YAxis
+            tick={{ fill: CHART_COLORS.text, fontSize: 10 }}
+            tickLine={false}
+            axisLine={false}
+            domain={[minBpm, maxBpm]}
+            tickFormatter={(val: number) => `${val}`}
+          />
+          <Tooltip content={<CustomTooltip />} />
+          <Line
+            type="monotone"
+            dataKey="bpm"
+            stroke={CHART_COLORS.line}
+            strokeWidth={2}
+            dot={false}
+            connectNulls
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
