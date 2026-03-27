@@ -1,11 +1,10 @@
 "use client";
 
 import {
-  AreaChart,
-  Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   Cell,
@@ -30,35 +29,23 @@ const PHASE_LABELS: Record<number, string> = {
   4: "Despierto",
 };
 
-interface TooltipEntry {
-  value: number | null;
-}
-
 interface CustomTooltipProps {
   active?: boolean;
-  payload?: TooltipEntry[];
+  payload?: { payload: SleepPhasePoint }[];
   label?: string;
 }
 
 function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   if (!active || !payload?.length || !label) return null;
-  const phase = payload[0]?.value;
+  const phase = payload[0]?.payload?.phase;
   return (
     <div className="rounded-lg border border-emerald-800 bg-emerald-950 p-3 text-xs shadow-lg">
       <p className="mb-1 font-medium text-emerald-300">{label}</p>
-      <p className="font-mono text-white">
+      <p className="font-mono" style={{ color: phase ? PHASE_COLORS[phase] : "#fff" }}>
         {phase != null ? PHASE_LABELS[phase] ?? "–" : "–"}
       </p>
     </div>
   );
-}
-
-function formatXTick(value: string): string {
-  return value.endsWith(":00") ? value : "";
-}
-
-function formatYTick(value: number): string {
-  return PHASE_LABELS[value] ?? "";
 }
 
 export function SleepPhasesChart({ data }: SleepPhasesChartProps) {
@@ -70,77 +57,51 @@ export function SleepPhasesChart({ data }: SleepPhasesChartProps) {
     );
   }
 
+  // Explicit ticks only at whole hours present in the data
+  const hourTicks = data
+    .filter((d) => d.time.endsWith(":00"))
+    .map((d) => d.time);
+
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs font-medium text-emerald-400 uppercase tracking-wide">
         Sueño — fases
       </p>
-      <ResponsiveContainer width="100%" height={200}>
-        <AreaChart
+      <ResponsiveContainer width="100%" height={180}>
+        <BarChart
           data={data}
-          margin={{ top: 4, right: 4, left: 10, bottom: 0 }}
+          margin={{ top: 4, right: 4, left: -10, bottom: 0 }}
+          barCategoryGap={0}
+          barGap={0}
         >
-          <defs>
-            <linearGradient id="phaseGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#065f46" stopOpacity={0.8} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="#064e3b"
-            vertical={false}
-          />
           <XAxis
             dataKey="time"
             tick={{ fill: "#34d399", fontSize: 10 }}
             tickLine={false}
             axisLine={false}
-            tickFormatter={formatXTick}
-            interval={5}
+            ticks={hourTicks}
           />
-          <YAxis
-            domain={[0.5, 4.5]}
-            ticks={[1, 2, 3, 4]}
-            tick={{ fill: "#34d399", fontSize: 10 }}
-            tickLine={false}
-            axisLine={false}
-            tickFormatter={formatYTick}
-            width={60}
+          <YAxis hide />
+          <Tooltip
+            content={<CustomTooltip />}
+            cursor={{ fill: "rgba(16,185,129,0.08)" }}
           />
-          <Tooltip content={<CustomTooltip />} />
-          <Area
-            type="stepAfter"
-            dataKey="phase"
-            stroke="#10b981"
-            strokeWidth={1.5}
-            fill="url(#phaseGradient)"
-            dot={(props) => {
-              const { cx, cy, payload } = props as {
-                cx: number;
-                cy: number;
-                payload: SleepPhasePoint;
-              };
-              return (
-                <circle
-                  key={`dot-${cx}-${cy}`}
-                  cx={cx}
-                  cy={cy}
-                  r={0}
-                  fill={PHASE_COLORS[payload.phase]}
-                />
-              );
-            }}
-            activeDot={{ r: 3, fill: "#10b981" }}
-          />
-        </AreaChart>
+          <Bar dataKey="phase" maxBarSize={8} radius={0}>
+            {data.map((entry, index) => (
+              <Cell
+                key={`cell-${index}`}
+                fill={PHASE_COLORS[entry.phase] ?? "#374151"}
+              />
+            ))}
+          </Bar>
+        </BarChart>
       </ResponsiveContainer>
       {/* Legend */}
-      <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-emerald-500">
-        {([4, 3, 2, 1] as const).map((phase) => (
+      <div className="flex flex-wrap items-center gap-3 text-xs text-emerald-500">
+        {([1, 3, 2, 4] as const).map((phase) => (
           <span key={phase} className="flex items-center gap-1.5">
             <span
-              className="inline-block h-2 w-3 rounded-sm"
+              className="inline-block h-2.5 w-2.5 rounded-sm"
               style={{ backgroundColor: PHASE_COLORS[phase] }}
             />
             {PHASE_LABELS[phase]}

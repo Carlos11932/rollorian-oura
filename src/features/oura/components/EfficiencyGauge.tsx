@@ -7,9 +7,9 @@ interface EfficiencyGaugeProps {
 }
 
 function getEfficiencyColor(value: number): string {
-  if (value >= 85) return "var(--color-emerald-500)";
-  if (value >= 70) return "var(--color-yellow-400)";
-  return "var(--color-red-500)";
+  if (value >= 85) return "#10b981";
+  if (value >= 70) return "#facc15";
+  return "#ef4444";
 }
 
 export function EfficiencyGauge({ efficiency }: EfficiencyGaugeProps) {
@@ -52,7 +52,7 @@ export function EfficiencyGauge({ efficiency }: EfficiencyGaugeProps) {
         <RadialBar
           dataKey="value"
           cornerRadius={6}
-          background={{ fill: "var(--color-emerald-950)" }}
+          background={{ fill: "#022c22" }}
           angleAxisId={0}
         />
       </RadialBarChart>
