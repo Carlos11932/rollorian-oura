@@ -14,6 +14,7 @@ import { MetricLineChart } from "@/features/oura/components/MetricLineChart";
 import { IntradayHRChart } from "@/features/oura/components/IntradayHRChart";
 import { SleepPhasesChart } from "@/features/oura/components/SleepPhasesChart";
 import { BreathingRateDisplay } from "@/features/oura/components/BreathingRateDisplay";
+import { HrvDisplay } from "@/features/oura/components/HrvDisplay";
 import { DailyStressCard } from "@/features/oura/components/DailyStressCard";
 import { PeriodSelector } from "@/features/oura/components/PeriodSelector";
 import { SyncButton } from "@/features/oura/components/SyncButton";
@@ -115,6 +116,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             </div>
             <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
               <BreathingRateDisplay averageBreath={daySleep?.averageBreath ?? null} />
+            </div>
+            <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
+              <HrvDisplay averageHrv={daySleep?.averageHrv ?? null} />
             </div>
             <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
               <DailyStressCard

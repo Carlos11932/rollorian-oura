@@ -44,6 +44,7 @@ export interface SleepChartPoint {
   efficiency: number | null;
   score: number | null;
   averageBreath: number | null;
+  averageHrv: number | null;
 }
 
 export async function getSleepChartData(
@@ -65,6 +66,7 @@ export async function getSleepChartData(
       efficiency: true,
       score: true,
       averageBreath: true,
+      averageHrv: true,
     },
     orderBy: { day: "asc" },
   });
@@ -78,6 +80,7 @@ export async function getSleepChartData(
     efficiency: row.efficiency ?? null,
     score: row.score ?? null,
     averageBreath: row.averageBreath ?? null,
+    averageHrv: row.averageHrv ?? null,
   }));
 }
 
