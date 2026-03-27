@@ -39,7 +39,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const rawDate =
     typeof params["date"] === "string" ? params["date"] : undefined;
 
-  const period: Period = isValidPeriod(rawPeriod) ? rawPeriod : "7d";
+  const period: Period = isValidPeriod(rawPeriod) ? rawPeriod : "1d";
   const selectedDate: string | undefined =
     rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : undefined;
 
@@ -156,79 +156,30 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
       {/* Main Grid */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {/* Sleep Column — 2/3 width */}
-        <div className="flex flex-col gap-4 lg:col-span-2">
-          {/* Sleep Area Chart with drill-down */}
-          <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
-            <h2 className="mb-3 text-sm font-semibold text-emerald-300 uppercase tracking-wide">
-              Sueño — ciclos
-            </h2>
-            <DrillDownWrapper data={sleepData} />
-            {/* Legend */}
-            <div className="mt-2 flex items-center gap-4 text-xs text-emerald-500">
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-2 w-2 rounded-full bg-emerald-800" />
-                Profundo
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-                REM
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-2 w-2 rounded-full bg-emerald-200" />
-                Ligero
-              </span>
-            </div>
-          </div>
-
-          {/* Score + Efficiency Line Charts */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
-              <MetricLineChart
-                data={sleepData}
-                dataKey="score"
-                label="Sleep Score"
-                unit=""
-                color="#34d399"
-              />
-            </div>
-            <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
-              <MetricLineChart
-                data={sleepData}
-                dataKey="efficiency"
-                label="Eficiencia del sueño"
-                unit="%"
-                color="#2dd4bf"
-              />
-            </div>
+        {/* Sleep Chart — 2/3 width */}
+        <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4 lg:col-span-2">
+          <h2 className="mb-3 text-sm font-semibold text-emerald-300 uppercase tracking-wide">
+            Sueño — horas
+          </h2>
+          <DrillDownWrapper data={sleepData} />
+          <div className="mt-2 flex items-center gap-4 text-xs text-emerald-500">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2 w-2 rounded-full bg-emerald-800" />
+              Profundo
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+              REM
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2 w-2 rounded-full bg-emerald-200" />
+              Ligero
+            </span>
           </div>
         </div>
 
         {/* Metrics Column — 1/3 width */}
         <div className="flex flex-col gap-4">
-          {/* Resting HR */}
-          <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
-            <MetricLineChart
-              data={metricsData}
-              dataKey="restingHR"
-              label="FC en reposo"
-              unit=" bpm"
-              color="#34d399"
-            />
-          </div>
-
-          {/* Cardio Age */}
-          <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
-            <MetricLineChart
-              data={metricsData}
-              dataKey="cardioAge"
-              label="Edad cardiovascular"
-              unit=" años"
-              color="#2dd4bf"
-            />
-          </div>
-
-          {/* Stress Line Chart */}
           <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
             <MetricLineChart
               data={metricsData}
@@ -236,6 +187,15 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               label="Tiempo en estrés"
               unit=" min"
               color="#f87171"
+            />
+          </div>
+          <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
+            <MetricLineChart
+              data={metricsData}
+              dataKey="cardioAge"
+              label="Edad cardiovascular"
+              unit=" años"
+              color="#2dd4bf"
             />
           </div>
         </div>
