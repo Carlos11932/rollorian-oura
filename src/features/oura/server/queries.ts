@@ -181,11 +181,25 @@ export async function getIntradayHeartRate(
 
   if (entries.length === 0) return [];
 
-  // Group into 15-min buckets
+  // Convert timestamp to Europe/Madrid local time string "HH:MM"
+  const toMadridHHMM = (d: Date): string => {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Madrid",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(d);
+    const h = parts.find((p) => p.type === "hour")?.value ?? "00";
+    const m = parts.find((p) => p.type === "minute")?.value ?? "00";
+    return `${h}:${m}`;
+  };
+
+  // Group into 15-min buckets using Madrid local time
   const bucketMap = new Map<string, number[]>();
   for (const entry of entries) {
-    const totalMinutes =
-      entry.timestamp.getUTCHours() * 60 + entry.timestamp.getUTCMinutes();
+    const localHHMM = toMadridHHMM(entry.timestamp);
+    const [hStr, mStr] = localHHMM.split(":");
+    const totalMinutes = parseInt(hStr) * 60 + parseInt(mStr);
     const bucketMinutes = Math.floor(totalMinutes / 15) * 15;
     const hh = String(Math.floor(bucketMinutes / 60)).padStart(2, "0");
     const mm = String(bucketMinutes % 60).padStart(2, "0");
@@ -196,13 +210,19 @@ export async function getIntradayHeartRate(
 
   const now = new Date();
   const nowBucket = isToday(parseISO(date))
-    ? `${String(now.getUTCHours()).padStart(2, "0")}:${String(Math.floor(now.getUTCMinutes() / 15) * 15).padStart(2, "0")}`
+    ? (() => {
+        const localNow = toMadridHHMM(now);
+        const [hStr, mStr] = localNow.split(":");
+        const totalMinutes = parseInt(hStr) * 60 + parseInt(mStr);
+        const bucketMinutes = Math.floor(totalMinutes / 15) * 15;
+        return `${String(Math.floor(bucketMinutes / 60)).padStart(2, "0")}:${String(bucketMinutes % 60).padStart(2, "0")}`;
+      })()
     : null;
 
   return Array.from(bucketMap.entries())
     .filter(([time]) => nowBucket === null || time <= nowBucket)
     .map(([time, bpms]) => ({
-      hour: time, // "HH:MM" string
+      hour: time,
       bpm: Math.round(bpms.reduce((sum, v) => sum + v, 0) / bpms.length),
     }))
     .sort((a, b) => a.hour.localeCompare(b.hour));

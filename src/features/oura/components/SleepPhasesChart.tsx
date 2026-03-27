@@ -1,25 +1,25 @@
 "use client";
 
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from "recharts";
 import type { SleepPhasePoint } from "@/features/oura/server/queries";
 
 interface SleepPhasesChartProps {
   data: SleepPhasePoint[];
 }
 
+// Height of each phase block as fraction of total chart height
+// deep = full height (most restorative), awake = very short
+const PHASE_HEIGHT: Record<number, number> = {
+  1: 1.0,   // deep
+  2: 0.55,  // light
+  3: 0.75,  // rem
+  4: 0.2,   // awake
+};
+
 const PHASE_COLORS: Record<number, string> = {
-  1: "#065f46", // deep — dark emerald
-  2: "#a7f3d0", // light — light emerald
-  3: "#10b981", // rem — emerald
-  4: "#374151", // awake — gray
+  1: "#065f46",
+  2: "#6ee7b7",
+  3: "#10b981",
+  4: "#4b5563",
 };
 
 const PHASE_LABELS: Record<number, string> = {
@@ -29,73 +29,67 @@ const PHASE_LABELS: Record<number, string> = {
   4: "Despierto",
 };
 
-interface CustomTooltipProps {
-  active?: boolean;
-  payload?: { payload: SleepPhasePoint }[];
-  label?: string;
-}
-
-function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
-  if (!active || !payload?.length || !label) return null;
-  const phase = payload[0]?.payload?.phase;
-  return (
-    <div className="rounded-lg border border-emerald-800 bg-emerald-950 p-3 text-xs shadow-lg">
-      <p className="mb-1 font-medium text-emerald-300">{label}</p>
-      <p className="font-mono" style={{ color: phase ? PHASE_COLORS[phase] : "#fff" }}>
-        {phase != null ? PHASE_LABELS[phase] ?? "–" : "–"}
-      </p>
-    </div>
-  );
-}
+const CHART_HEIGHT = 80;
 
 export function SleepPhasesChart({ data }: SleepPhasesChartProps) {
   if (data.length === 0) {
     return (
-      <div className="flex h-[200px] items-center justify-center text-sm text-emerald-600">
+      <div className="flex h-[140px] items-center justify-center text-sm text-emerald-600">
         Sin datos de fases del sueño
       </div>
     );
   }
 
-  // Explicit ticks only at whole hours present in the data
+  const total = data.length;
+
+  // Hour tick positions: index of every :00 point
   const hourTicks = data
-    .filter((d) => d.time.endsWith(":00"))
-    .map((d) => d.time);
+    .map((d, i) => ({ i, time: d.time }))
+    .filter(({ time }) => time.endsWith(":00"));
 
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs font-medium text-emerald-400 uppercase tracking-wide">
         Sueño — fases
       </p>
-      <ResponsiveContainer width="100%" height={180}>
-        <BarChart
-          data={data}
-          margin={{ top: 4, right: 4, left: -10, bottom: 0 }}
-          barCategoryGap={0}
-          barGap={0}
+
+      {/* Hypnogram strip */}
+      <div className="relative w-full" style={{ height: CHART_HEIGHT + 20 }}>
+        <svg
+          width="100%"
+          height={CHART_HEIGHT}
+          preserveAspectRatio="none"
+          viewBox={`0 0 ${total} ${CHART_HEIGHT}`}
         >
-          <XAxis
-            dataKey="time"
-            tick={{ fill: "#34d399", fontSize: 10 }}
-            tickLine={false}
-            axisLine={false}
-            ticks={hourTicks}
-          />
-          <YAxis hide />
-          <Tooltip
-            content={<CustomTooltip />}
-            cursor={{ fill: "rgba(16,185,129,0.08)" }}
-          />
-          <Bar dataKey="phase" maxBarSize={8} radius={0}>
-            {data.map((entry, index) => (
-              <Cell
-                key={`cell-${index}`}
-                fill={PHASE_COLORS[entry.phase] ?? "#374151"}
+          {data.map((point, i) => {
+            const h = Math.round(PHASE_HEIGHT[point.phase] * CHART_HEIGHT);
+            return (
+              <rect
+                key={i}
+                x={i}
+                y={CHART_HEIGHT - h}
+                width={1.2}
+                height={h}
+                fill={PHASE_COLORS[point.phase] ?? "#4b5563"}
               />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+            );
+          })}
+        </svg>
+
+        {/* Time axis labels */}
+        <div className="relative" style={{ height: 20 }}>
+          {hourTicks.map(({ i, time }) => (
+            <span
+              key={time}
+              className="absolute text-[10px] text-emerald-500 -translate-x-1/2"
+              style={{ left: `${(i / total) * 100}%`, top: 2 }}
+            >
+              {time}
+            </span>
+          ))}
+        </div>
+      </div>
+
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-3 text-xs text-emerald-500">
         {([1, 3, 2, 4] as const).map((phase) => (
