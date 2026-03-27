@@ -257,6 +257,45 @@ export async function getSleepIntradayData(
     .sort((a, b) => a.time.localeCompare(b.time));
 }
 
+// ─── Sleep Phase Timeline ─────────────────────────────────────────────────────
+
+export interface SleepPhasePoint {
+  time: string; // "HH:MM" UTC
+  phase: 1 | 2 | 3 | 4; // 1=deep, 2=light, 3=rem, 4=awake
+}
+
+export async function getSleepPhaseData(
+  date: string,
+): Promise<SleepPhasePoint[]> {
+  const records = await prisma.ouraSleepPeriod.findMany({
+    where: { day: date },
+    select: { sleepPhaseData: true, sleepType: true, bedtimeStart: true },
+  });
+
+  // Prefer long_sleep, fallback to any with sleepPhaseData
+  const record =
+    records.find((r) => r.sleepType === "long_sleep" && r.sleepPhaseData) ??
+    records.find((r) => r.sleepPhaseData);
+
+  if (!record?.sleepPhaseData) return [];
+
+  const chars = record.sleepPhaseData.split("");
+  const base = record.bedtimeStart.getTime();
+
+  const points: SleepPhasePoint[] = [];
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i];
+    if (ch !== "1" && ch !== "2" && ch !== "3" && ch !== "4") continue;
+    const phase = Number(ch) as 1 | 2 | 3 | 4;
+    const t = new Date(base + i * 5 * 60 * 1000);
+    const hh = String(t.getUTCHours()).padStart(2, "0");
+    const mm = String(t.getUTCMinutes()).padStart(2, "0");
+    points.push({ time: `${hh}:${mm}`, phase });
+  }
+
+  return points;
+}
+
 // ─── Stress Intraday Heart Rate ────────────────────────────────────────────────
 
 export async function getStressIntradayData(

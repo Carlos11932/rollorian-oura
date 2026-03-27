@@ -4,7 +4,7 @@ import {
   getMetricsData,
   getIntradayHeartRate,
   getSleepIntradayData,
-  getStressIntradayData,
+  getSleepPhaseData,
   type Period,
 } from "@/features/oura/server/queries";
 import { DrillDownWrapper } from "@/features/oura/components/DrillDownWrapper";
@@ -14,7 +14,8 @@ import { CardioAgeDisplay } from "@/features/oura/components/CardioAgeDisplay";
 import { MetricLineChart } from "@/features/oura/components/MetricLineChart";
 import { IntradayHRChart } from "@/features/oura/components/IntradayHRChart";
 import { SleepIntradayChart } from "@/features/oura/components/SleepIntradayChart";
-import { StressIntradayChart } from "@/features/oura/components/StressIntradayChart";
+import { SleepPhasesChart } from "@/features/oura/components/SleepPhasesChart";
+import { DailyStressCard } from "@/features/oura/components/DailyStressCard";
 import { PeriodSelector } from "@/features/oura/components/PeriodSelector";
 import { SyncButton } from "@/features/oura/components/SyncButton";
 import { format } from "date-fns";
@@ -47,13 +48,13 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   if (period === "1d") {
     const targetDate = selectedDate ?? today;
 
-    const [sleepData, metricsData, intradayHRData, sleepIntradayData, stressIntradayData] =
+    const [sleepData, metricsData, intradayHRData, sleepIntradayData, sleepPhaseData] =
       await Promise.all([
         getSleepChartData("1d", targetDate),
         getMetricsData("1d", targetDate),
         getIntradayHeartRate(targetDate),
         getSleepIntradayData(targetDate),
-        getStressIntradayData(targetDate),
+        getSleepPhaseData(targetDate),
       ]);
 
     const daySleep = sleepData.at(0);
@@ -104,18 +105,24 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
         {/* Bottom grid: 2/3 + 1/3 */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          {/* Sleep intraday — 2/3 */}
+          {/* Sleep phases timeline — 2/3 */}
           <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4 lg:col-span-2">
-            <SleepIntradayChart data={sleepIntradayData} />
+            <SleepPhasesChart data={sleepPhaseData} />
           </div>
 
-          {/* FC intraday + Stress intraday — 1/3 */}
+          {/* FC durante sueño + FC diurna + Estrés — 1/3 */}
           <div className="flex flex-col gap-4">
+            <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
+              <SleepIntradayChart data={sleepIntradayData} />
+            </div>
             <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
               <IntradayHRChart data={intradayHRData} />
             </div>
             <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
-              <StressIntradayChart data={stressIntradayData} />
+              <DailyStressCard
+                stressHighMin={metricsData[0]?.stressHigh ?? null}
+                recoveryHighMin={metricsData[0]?.recoveryHigh ?? null}
+              />
             </div>
           </div>
         </div>
