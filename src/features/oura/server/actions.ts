@@ -1,6 +1,8 @@
 "use server";
 
 import { format, subDays } from "date-fns";
+import { syncEndpoints } from "./sync-engine";
+import { ALL_SYNCABLE_ENDPOINTS } from "@/lib/oura/endpoints";
 
 interface SyncResult {
   success: boolean;
@@ -12,33 +14,23 @@ export async function triggerManualSync(): Promise<SyncResult> {
   const endDate = format(today, "yyyy-MM-dd");
   const startDate = format(subDays(today, 1), "yyyy-MM-dd");
 
-  const baseUrl = process.env["NEXT_PUBLIC_APP_URL"] ?? "http://localhost:3000";
-  const apiKey = process.env["INTERNAL_API_KEY"];
-
-  if (!apiKey) {
-    return { success: false, message: "INTERNAL_API_KEY not configured" };
-  }
-
   try {
-    const response = await fetch(`${baseUrl}/api/internal/sync`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-      },
-      body: JSON.stringify({ startDate, endDate }),
+    const result = await syncEndpoints({
+      endpoints: ALL_SYNCABLE_ENDPOINTS,
+      startDate,
+      endDate,
+      force: true,
+      source: "manual",
     });
 
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({})) as Record<string, unknown>;
-      const errorMsg = typeof data["error"] === "string" ? data["error"] : "Sync failed";
-      return { success: false, message: errorMsg };
+    if (result.status === "error") {
+      const firstError = result.errors?.[0]?.message ?? "Sync failed";
+      return { success: false, message: firstError };
     }
 
     return { success: true, message: "Sync completed" };
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unknown error occurred";
+    const message = error instanceof Error ? error.message : "Unknown error";
     return { success: false, message };
   }
 }
