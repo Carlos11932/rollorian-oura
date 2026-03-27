@@ -10,7 +10,6 @@ import { DrillDownWrapper } from "@/features/oura/components/DrillDownWrapper";
 import { SleepScoreGauge } from "@/features/oura/components/SleepScoreGauge";
 import { EfficiencyGauge } from "@/features/oura/components/EfficiencyGauge";
 import { MetricLineChart } from "@/features/oura/components/MetricLineChart";
-import { StressBarChart } from "@/features/oura/components/StressBarChart";
 import { IntradayHRChart } from "@/features/oura/components/IntradayHRChart";
 import { PeriodSelector } from "@/features/oura/components/PeriodSelector";
 import { SyncButton } from "@/features/oura/components/SyncButton";
@@ -238,19 +237,15 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             />
           </div>
 
-          {/* Stress Bar Chart */}
+          {/* Stress Line Chart */}
           <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
-            <StressBarChart data={metricsData} />
-            <div className="mt-2 flex items-center gap-4 text-xs text-emerald-500">
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
-                Estrés
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-                Recuperación
-              </span>
-            </div>
+            <MetricLineChart
+              data={metricsData}
+              dataKey="stressHigh"
+              label="Estrés alto"
+              unit=" min"
+              color="#f87171"
+            />
           </div>
         </div>
       </div>
