@@ -9,14 +9,14 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import type { StressIntradayPoint } from "@/features/oura/server/queries";
+import type { SleepIntradayPoint } from "@/features/oura/server/queries";
 
-interface IntradayHRChartProps {
-  data: StressIntradayPoint[];
+interface SleepIntradayChartProps {
+  data: SleepIntradayPoint[];
 }
 
 const CHART_COLORS = {
-  line: "var(--color-emerald-400)",
+  line: "var(--color-indigo-400)",
   gridLine: "var(--color-emerald-900)",
   text: "var(--color-emerald-400)",
 };
@@ -47,11 +47,11 @@ function formatTick(value: string): string {
   return value.endsWith(":00") ? value : "";
 }
 
-export function IntradayHRChart({ data }: IntradayHRChartProps) {
+export function SleepIntradayChart({ data }: SleepIntradayChartProps) {
   if (data.length === 0) {
     return (
-      <div className="flex h-[100px] items-center justify-center text-sm text-emerald-600">
-        Sin datos — usa el botón Sincronizar
+      <div className="flex h-[160px] items-center justify-center text-sm text-emerald-600">
+        Sin datos de sueño para este día
       </div>
     );
   }
@@ -63,9 +63,9 @@ export function IntradayHRChart({ data }: IntradayHRChartProps) {
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs font-medium text-emerald-400 uppercase tracking-wide">
-        FC intraday
+        FC durante el sueño
       </p>
-      <ResponsiveContainer width="100%" height={100}>
+      <ResponsiveContainer width="100%" height={160}>
         <LineChart data={data} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
           <CartesianGrid
             strokeDasharray="3 3"
@@ -73,7 +73,7 @@ export function IntradayHRChart({ data }: IntradayHRChartProps) {
             vertical={false}
           />
           <XAxis
-            dataKey="hour"
+            dataKey="time"
             tick={{ fill: CHART_COLORS.text, fontSize: 10 }}
             tickLine={false}
             axisLine={false}

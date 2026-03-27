@@ -11,12 +11,12 @@ import {
 } from "recharts";
 import type { StressIntradayPoint } from "@/features/oura/server/queries";
 
-interface IntradayHRChartProps {
+interface StressIntradayChartProps {
   data: StressIntradayPoint[];
 }
 
 const CHART_COLORS = {
-  line: "var(--color-emerald-400)",
+  line: "#f87171",
   gridLine: "var(--color-emerald-900)",
   text: "var(--color-emerald-400)",
 };
@@ -47,11 +47,11 @@ function formatTick(value: string): string {
   return value.endsWith(":00") ? value : "";
 }
 
-export function IntradayHRChart({ data }: IntradayHRChartProps) {
+export function StressIntradayChart({ data }: StressIntradayChartProps) {
   if (data.length === 0) {
     return (
       <div className="flex h-[100px] items-center justify-center text-sm text-emerald-600">
-        Sin datos — usa el botón Sincronizar
+        Sin datos de estrés para este día
       </div>
     );
   }
@@ -63,7 +63,7 @@ export function IntradayHRChart({ data }: IntradayHRChartProps) {
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs font-medium text-emerald-400 uppercase tracking-wide">
-        FC intraday
+        FC diurna (estrés)
       </p>
       <ResponsiveContainer width="100%" height={100}>
         <LineChart data={data} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>

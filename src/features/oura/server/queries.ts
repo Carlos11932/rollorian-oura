@@ -175,13 +175,12 @@ export async function getIntradayHeartRate(
 
   if (entries.length === 0) return [];
 
-  // Group by local hour using 5-min buckets for better resolution
+  // Group into 15-min buckets
   const bucketMap = new Map<string, number[]>();
   for (const entry of entries) {
-    // Round down to 5-minute bucket, keep as HH:MM label
     const totalMinutes =
       entry.timestamp.getUTCHours() * 60 + entry.timestamp.getUTCMinutes();
-    const bucketMinutes = Math.floor(totalMinutes / 5) * 5;
+    const bucketMinutes = Math.floor(totalMinutes / 15) * 15;
     const hh = String(Math.floor(bucketMinutes / 60)).padStart(2, "0");
     const mm = String(bucketMinutes % 60).padStart(2, "0");
     const key = `${hh}:${mm}`;
@@ -192,6 +191,99 @@ export async function getIntradayHeartRate(
   return Array.from(bucketMap.entries())
     .map(([time, bpms]) => ({
       hour: time, // "HH:MM" string
+      bpm: Math.round(bpms.reduce((sum, v) => sum + v, 0) / bpms.length),
+    }))
+    .sort((a, b) => a.hour.localeCompare(b.hour));
+}
+
+// ─── Sleep Intraday Heart Rate ─────────────────────────────────────────────────
+
+export interface SleepIntradayPoint {
+  time: string; // "HH:MM"
+  bpm: number;
+}
+
+interface OuraHeartRateData {
+  interval: number;
+  items: (number | null)[];
+  timestamp: string;
+}
+
+export async function getSleepIntradayData(
+  date: string,
+): Promise<SleepIntradayPoint[]> {
+  const record = await prisma.ouraSleepPeriod.findFirst({
+    where: {
+      day: date,
+      NOT: { heartRateData: null },
+    },
+    select: { heartRateData: true },
+  });
+
+  if (!record?.heartRateData) return [];
+
+  const hrData = record.heartRateData as OuraHeartRateData;
+  if (!hrData?.items?.length) return [];
+
+  const baseTime = new Date(hrData.timestamp);
+  const intervalMs = hrData.interval * 1000;
+
+  const bucketMap = new Map<string, number[]>();
+  hrData.items.forEach((bpm, i) => {
+    if (bpm == null) return;
+    const t = new Date(baseTime.getTime() + i * intervalMs);
+    const totalMin = t.getUTCHours() * 60 + t.getUTCMinutes();
+    const bucket = Math.floor(totalMin / 15) * 15;
+    const hh = String(Math.floor(bucket / 60)).padStart(2, "0");
+    const mm = String(bucket % 60).padStart(2, "0");
+    const key = `${hh}:${mm}`;
+    if (!bucketMap.has(key)) bucketMap.set(key, []);
+    bucketMap.get(key)!.push(bpm);
+  });
+
+  return Array.from(bucketMap.entries())
+    .map(([time, bpms]) => ({
+      time,
+      bpm: Math.round(bpms.reduce((a, b) => a + b, 0) / bpms.length),
+    }))
+    .sort((a, b) => a.time.localeCompare(b.time));
+}
+
+// ─── Stress Intraday Heart Rate ────────────────────────────────────────────────
+
+export async function getStressIntradayData(
+  date: string,
+): Promise<StressIntradayPoint[]> {
+  const dayStart = new Date(`${date}T00:00:00.000Z`);
+  const gte = new Date(dayStart.getTime() - 14 * 60 * 60 * 1000);
+  const lte = new Date(dayStart.getTime() + 38 * 60 * 60 * 1000);
+
+  const entries = await prisma.ouraHeartRateEntry.findMany({
+    where: {
+      timestamp: { gte, lte },
+      NOT: { source: "sleep" },
+    },
+    select: { bpm: true, timestamp: true },
+    orderBy: { timestamp: "asc" },
+  });
+
+  if (entries.length === 0) return [];
+
+  const bucketMap = new Map<string, number[]>();
+  for (const entry of entries) {
+    const totalMinutes =
+      entry.timestamp.getUTCHours() * 60 + entry.timestamp.getUTCMinutes();
+    const bucketMinutes = Math.floor(totalMinutes / 15) * 15;
+    const hh = String(Math.floor(bucketMinutes / 60)).padStart(2, "0");
+    const mm = String(bucketMinutes % 60).padStart(2, "0");
+    const key = `${hh}:${mm}`;
+    if (!bucketMap.has(key)) bucketMap.set(key, []);
+    bucketMap.get(key)!.push(entry.bpm);
+  }
+
+  return Array.from(bucketMap.entries())
+    .map(([time, bpms]) => ({
+      hour: time,
       bpm: Math.round(bpms.reduce((sum, v) => sum + v, 0) / bpms.length),
     }))
     .sort((a, b) => a.hour.localeCompare(b.hour));
