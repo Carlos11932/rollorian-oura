@@ -219,7 +219,7 @@ export async function getSleepIntradayData(
 
   if (!record?.heartRateData) return [];
 
-  const hrData = record.heartRateData as OuraHeartRateData;
+  const hrData = record.heartRateData as unknown as OuraHeartRateData;
   if (!hrData?.items?.length) return [];
 
   const baseTime = new Date(hrData.timestamp);
