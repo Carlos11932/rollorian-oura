@@ -7,7 +7,6 @@ import {
   getStressIntradayData,
   type Period,
 } from "@/features/oura/server/queries";
-import { SleepAreaChart } from "@/features/oura/components/SleepAreaChart";
 import { DrillDownWrapper } from "@/features/oura/components/DrillDownWrapper";
 import { SleepScoreGauge } from "@/features/oura/components/SleepScoreGauge";
 import { EfficiencyGauge } from "@/features/oura/components/EfficiencyGauge";
@@ -131,11 +130,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     getMetricsData(period),
   ]);
 
-  // Latest sleep record for gauges
-  const latestSleep = sleepData.at(-1);
-  const latestScore = latestSleep?.score ?? null;
-  const latestEfficiency = latestSleep?.efficiency ?? null;
-
   return (
     <div className="min-h-screen bg-emerald-950/20 p-4 md:p-6">
       {/* Header */}
@@ -178,25 +172,25 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             </div>
           </div>
 
-          {/* Score + Efficiency Gauges */}
+          {/* Score + Efficiency Line Charts */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col items-center rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
-              <h2 className="mb-2 text-sm font-semibold text-emerald-300 uppercase tracking-wide">
-                Sleep Score
-              </h2>
-              <SleepScoreGauge score={latestScore} />
-              <p className="mt-1 text-xs text-emerald-600">
-                Última noche registrada
-              </p>
+            <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
+              <MetricLineChart
+                data={sleepData}
+                dataKey="score"
+                label="Sleep Score"
+                unit=""
+                color="#34d399"
+              />
             </div>
-            <div className="flex flex-col items-center rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
-              <h2 className="mb-2 text-sm font-semibold text-emerald-300 uppercase tracking-wide">
-                Eficiencia del sueño
-              </h2>
-              <EfficiencyGauge efficiency={latestEfficiency} />
-              <p className="mt-1 text-xs text-emerald-600">
-                Última noche registrada
-              </p>
+            <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
+              <MetricLineChart
+                data={sleepData}
+                dataKey="efficiency"
+                label="Eficiencia del sueño"
+                unit="%"
+                color="#2dd4bf"
+              />
             </div>
           </div>
         </div>

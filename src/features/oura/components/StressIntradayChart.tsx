@@ -17,8 +17,8 @@ interface StressIntradayChartProps {
 
 const CHART_COLORS = {
   line: "#f87171",
-  gridLine: "var(--color-emerald-900)",
-  text: "var(--color-emerald-400)",
+  gridLine: "#064e3b",
+  text: "#34d399",
 };
 
 interface TooltipEntry {

@@ -11,10 +11,9 @@ import {
 } from "recharts";
 import { format, parseISO } from "date-fns";
 
-type DataPoint = Record<string, string | number | null>;
-
 interface MetricLineChartProps {
-  data: DataPoint[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any[];
   dataKey: string;
   label: string;
   unit: string;
@@ -79,7 +78,7 @@ export function MetricLineChart({
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={100}>
-          <LineChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+          <LineChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
             <CartesianGrid
               strokeDasharray="3 3"
               stroke="#064e3b"
@@ -94,12 +93,13 @@ export function MetricLineChart({
               interval="preserveStartEnd"
             />
             <YAxis
+              width={36}
               tick={{ fill: "#34d399", fontSize: 10 }}
               tickLine={false}
               axisLine={false}
               domain={domain}
               tickCount={4}
-              tickFormatter={(val: number) => `${Math.round(val)}${unit}`}
+              tickFormatter={(val: number) => `${Math.round(val)}`}
             />
             <Tooltip content={<CustomTooltip unit={unit} />} />
             <Line

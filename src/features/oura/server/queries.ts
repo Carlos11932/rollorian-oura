@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { subDays, format } from "date-fns";
+import { subDays, format, isToday, parseISO } from "date-fns";
 
 // ─── Period ───────────────────────────────────────────────────────────────────
 
@@ -188,7 +188,13 @@ export async function getIntradayHeartRate(
     bucketMap.get(key)!.push(entry.bpm);
   }
 
+  const now = new Date();
+  const nowBucket = isToday(parseISO(date))
+    ? `${String(now.getUTCHours()).padStart(2, "0")}:${String(Math.floor(now.getUTCMinutes() / 15) * 15).padStart(2, "0")}`
+    : null;
+
   return Array.from(bucketMap.entries())
+    .filter(([time]) => nowBucket === null || time <= nowBucket)
     .map(([time, bpms]) => ({
       hour: time, // "HH:MM" string
       bpm: Math.round(bpms.reduce((sum, v) => sum + v, 0) / bpms.length),
@@ -278,7 +284,13 @@ export async function getStressIntradayData(
     bucketMap.get(key)!.push(entry.bpm);
   }
 
+  const now = new Date();
+  const nowBucket = isToday(parseISO(date))
+    ? `${String(now.getUTCHours()).padStart(2, "0")}:${String(Math.floor(now.getUTCMinutes() / 15) * 15).padStart(2, "0")}`
+    : null;
+
   return Array.from(bucketMap.entries())
+    .filter(([time]) => nowBucket === null || time <= nowBucket)
     .map(([time, bpms]) => ({
       hour: time,
       bpm: Math.round(bpms.reduce((sum, v) => sum + v, 0) / bpms.length),

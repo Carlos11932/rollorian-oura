@@ -16,9 +16,9 @@ interface IntradayHRChartProps {
 }
 
 const CHART_COLORS = {
-  line: "var(--color-emerald-400)",
-  gridLine: "var(--color-emerald-900)",
-  text: "var(--color-emerald-400)",
+  line: "#34d399",
+  gridLine: "#064e3b",
+  text: "#34d399",
 };
 
 interface TooltipEntry {

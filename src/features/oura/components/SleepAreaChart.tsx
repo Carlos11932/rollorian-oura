@@ -76,7 +76,9 @@ export function SleepAreaChart({ data, onDayClick }: SleepAreaChartProps) {
   }
 
   const hasBreakdown = data.some((d) => d.deep > 0 || d.rem > 0 || d.light > 0);
-  const hasAnyData = data.some((d) => d.totalHours > 0);
+  const hasAnyData = data.some(
+    (d) => d.totalHours > 0 || d.deep > 0 || d.rem > 0 || d.light > 0,
+  );
 
   if (!hasAnyData) {
     return (
