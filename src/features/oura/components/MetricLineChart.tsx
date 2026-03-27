@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { format, parseISO } from "date-fns";
+import { es } from "date-fns/locale";
 
 interface MetricLineChartProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -89,7 +90,7 @@ export function MetricLineChart({
               tick={{ fill: "#34d399", fontSize: 10 }}
               tickLine={false}
               axisLine={false}
-              tickFormatter={(val: string) => format(parseISO(val), "d/M")}
+              tickFormatter={(val: string) => format(parseISO(val), "EEE d", { locale: es })}
               interval="preserveStartEnd"
             />
             <YAxis

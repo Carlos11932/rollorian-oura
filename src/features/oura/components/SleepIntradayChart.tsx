@@ -51,7 +51,7 @@ export function SleepIntradayChart({ data }: SleepIntradayChartProps) {
   if (data.length === 0) {
     return (
       <div className="flex h-[160px] items-center justify-center text-sm text-emerald-600">
-        Sin datos de sueño para este día
+        Sin datos de FC durante el sueño
       </div>
     );
   }

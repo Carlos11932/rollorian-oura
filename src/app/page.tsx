@@ -224,7 +224,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             <MetricLineChart
               data={metricsData}
               dataKey="stressHigh"
-              label="Estrés alto"
+              label="Tiempo en estrés"
               unit=" min"
               color="#f87171"
             />

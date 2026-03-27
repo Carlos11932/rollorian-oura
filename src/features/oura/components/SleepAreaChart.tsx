@@ -11,6 +11,7 @@ import {
   type MouseHandlerDataParam,
 } from "recharts";
 import { format, parseISO } from "date-fns";
+import { es } from "date-fns/locale";
 import type { SleepChartPoint } from "@/features/oura/server/queries";
 
 interface SleepAreaChartProps {
@@ -120,7 +121,7 @@ export function SleepAreaChart({ data, onDayClick }: SleepAreaChartProps) {
           tick={{ fill: COLORS.text, fontSize: 11 }}
           tickLine={false}
           axisLine={false}
-          tickFormatter={(val: string) => format(parseISO(val), "d/M")}
+          tickFormatter={(val: string) => format(parseISO(val), "EEE d", { locale: es })}
           interval="preserveStartEnd"
         />
         <YAxis
