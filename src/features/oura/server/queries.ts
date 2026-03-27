@@ -5,6 +5,7 @@ import { subDays, format } from "date-fns";
 // ─── Period ───────────────────────────────────────────────────────────────────
 
 const PERIOD = {
+  "1d": 1,
   "7d": 7,
   "14d": 14,
   "30d": 30,
@@ -13,7 +14,17 @@ const PERIOD = {
 
 export type Period = keyof typeof PERIOD;
 
-function getDateRange(period: Period): { start: string; end: string } {
+function getDateRange(
+  period: Period,
+  selectedDate?: string,
+): { start: string; end: string } {
+  if (period === "1d") {
+    const day =
+      selectedDate && /^\d{4}-\d{2}-\d{2}$/.test(selectedDate)
+        ? selectedDate
+        : format(new Date(), "yyyy-MM-dd");
+    return { start: day, end: day };
+  }
   const end = new Date();
   const start = subDays(end, PERIOD[period]);
   return {
@@ -36,8 +47,9 @@ export interface SleepChartPoint {
 
 export async function getSleepChartData(
   period: Period,
+  selectedDate?: string,
 ): Promise<SleepChartPoint[]> {
-  const { start, end } = getDateRange(period);
+  const { start, end } = getDateRange(period, selectedDate);
 
   const rows = await prisma.ouraSleepDaily.findMany({
     where: {
@@ -77,8 +89,11 @@ export interface MetricsPoint {
   [key: string]: string | number | null;
 }
 
-export async function getMetricsData(period: Period): Promise<MetricsPoint[]> {
-  const { start, end } = getDateRange(period);
+export async function getMetricsData(
+  period: Period,
+  selectedDate?: string,
+): Promise<MetricsPoint[]> {
+  const { start, end } = getDateRange(period, selectedDate);
 
   const [sleepRows, cardioRows, stressRows] = await Promise.all([
     prisma.ouraSleepDaily.findMany({
@@ -135,4 +150,44 @@ export async function getMetricsData(period: Period): Promise<MetricsPoint[]> {
     stressHigh: stressMap.get(day)?.stressHigh ?? null,
     recoveryHigh: stressMap.get(day)?.recoveryHigh ?? null,
   }));
+}
+
+// ─── Intraday Heart Rate ───────────────────────────────────────────────────────
+
+export interface StressIntradayPoint {
+  hour: number;
+  bpm: number;
+}
+
+export async function getIntradayHeartRate(
+  date: string,
+): Promise<StressIntradayPoint[]> {
+  const entries = await prisma.ouraHeartRateEntry.findMany({
+    where: {
+      timestamp: {
+        gte: new Date(`${date}T00:00:00.000Z`),
+        lte: new Date(`${date}T23:59:59.999Z`),
+      },
+    },
+    select: {
+      bpm: true,
+      timestamp: true,
+    },
+  });
+
+  if (entries.length === 0) return [];
+
+  const hourMap = new Map<number, number[]>();
+  for (const entry of entries) {
+    const hour = entry.timestamp.getUTCHours();
+    if (!hourMap.has(hour)) hourMap.set(hour, []);
+    hourMap.get(hour)!.push(entry.bpm);
+  }
+
+  return Array.from(hourMap.entries())
+    .map(([hour, bpms]) => ({
+      hour,
+      bpm: Math.round(bpms.reduce((sum, v) => sum + v, 0) / bpms.length),
+    }))
+    .sort((a, b) => a.hour - b.hour);
 }

@@ -8,12 +8,14 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  type MouseHandlerDataParam,
 } from "recharts";
 import { format, parseISO } from "date-fns";
 import type { SleepChartPoint } from "@/features/oura/server/queries";
 
 interface SleepAreaChartProps {
   data: SleepChartPoint[];
+  onDayClick?: (date: string) => void;
 }
 
 const COLORS = {
@@ -64,10 +66,23 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   );
 }
 
-export function SleepAreaChart({ data }: SleepAreaChartProps) {
+export function SleepAreaChart({ data, onDayClick }: SleepAreaChartProps) {
+  function handleClick(state: MouseHandlerDataParam) {
+    const index = state.activeTooltipIndex;
+    if (typeof index === "number") {
+      const day = data[index]?.day;
+      if (day) onDayClick?.(day);
+    }
+  }
+
   return (
     <ResponsiveContainer width="100%" height={220}>
-      <AreaChart data={data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+      <AreaChart
+        data={data}
+        margin={{ top: 4, right: 8, left: -20, bottom: 0 }}
+        onClick={handleClick}
+        style={onDayClick ? { cursor: "pointer" } : undefined}
+      >
         <defs>
           <linearGradient id="deepGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor={COLORS.deep} stopOpacity={0.9} />
