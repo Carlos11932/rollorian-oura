@@ -43,6 +43,7 @@ export interface SleepChartPoint {
   rem: number;
   efficiency: number | null;
   score: number | null;
+  averageBreath: number | null;
 }
 
 export async function getSleepChartData(
@@ -63,6 +64,7 @@ export async function getSleepChartData(
       remSleepSeconds: true,
       efficiency: true,
       score: true,
+      averageBreath: true,
     },
     orderBy: { day: "asc" },
   });
@@ -75,6 +77,7 @@ export async function getSleepChartData(
     rem: row.remSleepSeconds ? row.remSleepSeconds / 3600 : 0,
     efficiency: row.efficiency ?? null,
     score: row.score ?? null,
+    averageBreath: row.averageBreath ?? null,
   }));
 }
 

@@ -13,9 +13,24 @@ function getEfficiencyColor(value: number): string {
 }
 
 export function EfficiencyGauge({ efficiency }: EfficiencyGaugeProps) {
-  const value = efficiency ?? 0;
-  const color = getEfficiencyColor(value);
-  const data = [{ value, fill: color }];
+  if (efficiency == null) {
+    return (
+      <div
+        className="relative flex items-center justify-center"
+        style={{ width: 140, height: 140 }}
+      >
+        <div className="flex h-[130px] w-[130px] flex-col items-center justify-center rounded-full border-4 border-emerald-900">
+          <span className="text-2xl font-bold leading-none text-emerald-700">
+            –
+          </span>
+          <span className="mt-1 text-xs text-emerald-700">Sin datos</span>
+        </div>
+      </div>
+    );
+  }
+
+  const color = getEfficiencyColor(efficiency);
+  const data = [{ value: efficiency, fill: color }];
 
   return (
     <div className="relative flex items-center justify-center">
@@ -46,7 +61,7 @@ export function EfficiencyGauge({ efficiency }: EfficiencyGaugeProps) {
           className="text-3xl font-bold leading-none"
           style={{ color }}
         >
-          {efficiency != null ? `${efficiency}%` : "–"}
+          {`${efficiency}%`}
         </span>
         <span className="mt-1 text-xs text-emerald-500">eficiencia</span>
       </div>

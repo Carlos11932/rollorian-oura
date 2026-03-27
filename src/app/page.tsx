@@ -3,7 +3,6 @@ import {
   getSleepChartData,
   getMetricsData,
   getIntradayHeartRate,
-  getSleepIntradayData,
   getSleepPhaseData,
   type Period,
 } from "@/features/oura/server/queries";
@@ -13,8 +12,8 @@ import { EfficiencyGauge } from "@/features/oura/components/EfficiencyGauge";
 import { CardioAgeDisplay } from "@/features/oura/components/CardioAgeDisplay";
 import { MetricLineChart } from "@/features/oura/components/MetricLineChart";
 import { IntradayHRChart } from "@/features/oura/components/IntradayHRChart";
-import { SleepIntradayChart } from "@/features/oura/components/SleepIntradayChart";
 import { SleepPhasesChart } from "@/features/oura/components/SleepPhasesChart";
+import { BreathingRateDisplay } from "@/features/oura/components/BreathingRateDisplay";
 import { DailyStressCard } from "@/features/oura/components/DailyStressCard";
 import { PeriodSelector } from "@/features/oura/components/PeriodSelector";
 import { SyncButton } from "@/features/oura/components/SyncButton";
@@ -48,12 +47,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   if (period === "1d") {
     const targetDate = selectedDate ?? today;
 
-    const [sleepData, metricsData, intradayHRData, sleepIntradayData, sleepPhaseData] =
+    const [sleepData, metricsData, intradayHRData, sleepPhaseData] =
       await Promise.all([
         getSleepChartData("1d", targetDate),
         getMetricsData("1d", targetDate),
         getIntradayHeartRate(targetDate),
-        getSleepIntradayData(targetDate),
         getSleepPhaseData(targetDate),
       ]);
 
@@ -110,13 +108,13 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             <SleepPhasesChart data={sleepPhaseData} />
           </div>
 
-          {/* FC durante sueño + FC diurna + Estrés — 1/3 */}
+          {/* FC unificada + Respiración + Estrés — 1/3 */}
           <div className="flex flex-col gap-4">
             <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
-              <SleepIntradayChart data={sleepIntradayData} />
+              <IntradayHRChart data={intradayHRData} />
             </div>
             <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
-              <IntradayHRChart data={intradayHRData} />
+              <BreathingRateDisplay averageBreath={daySleep?.averageBreath ?? null} />
             </div>
             <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
               <DailyStressCard
