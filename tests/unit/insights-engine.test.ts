@@ -135,6 +135,33 @@ describe("Insights engine — upsert/repeat generation (Scenario 9)", () => {
       expect(mockCreateMany).not.toHaveBeenCalled();
     });
 
+    it("deletes before creates when rules fire", async () => {
+      const callOrder: string[] = [];
+      mockDeleteMany.mockImplementation(async () => {
+        callOrder.push("delete");
+        return { count: 0 };
+      });
+      mockCreateMany.mockImplementation(async () => {
+        callOrder.push("create");
+        return { count: 1 };
+      });
+
+      // Provide a sleep record with score < 70 so the lowSleepScore rule fires
+      const { getRawSleepDaily } = await import("@/features/oura/server/data");
+      vi.mocked(getRawSleepDaily).mockResolvedValueOnce([
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        { day: DAY, score: 65 } as any,
+      ]);
+
+      await generateInsights(DAY);
+
+      // delete must always be first
+      expect(callOrder[0]).toBe("delete");
+      if (callOrder.length > 1) {
+        expect(callOrder[1]).toBe("create");
+      }
+    });
+
     it("the transaction always deletes before inserting — atomic replace not append", async () => {
       // By always deleting before creating within the interactive transaction,
       // running twice produces exactly N insights (not 2N).

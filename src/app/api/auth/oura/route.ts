@@ -27,7 +27,7 @@ export async function GET() {
     path: "/api/auth/oura/callback",
     sameSite: "lax",
     maxAge: 600,
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.NEXTAUTH_URL?.startsWith("https://") ?? process.env.NODE_ENV === "production",
   })
 
   return NextResponse.redirect(url)

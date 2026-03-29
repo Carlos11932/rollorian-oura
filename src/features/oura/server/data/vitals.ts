@@ -9,6 +9,9 @@ import type {
   OuraReadinessDaily,
 } from "@prisma/client";
 
+/** Safety cap: ~5 weeks at 5-min resolution to prevent runaway queries */
+const HR_QUERY_CAP = 10_000
+
 // ─── Heart Rate ───────────────────────────────────────────────────────────────
 
 export async function getRawHeartRateEntries(
@@ -31,7 +34,7 @@ export async function getRawHeartRateEntriesInRange(
       ...(excludeSource ? { NOT: { source: excludeSource } } : {}),
     },
     orderBy: { timestamp: "asc" },
-    take: 10000,
+    take: HR_QUERY_CAP,
   });
 }
 

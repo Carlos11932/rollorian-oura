@@ -4,7 +4,16 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { validateInternalApiKey } from "@/lib/auth"
 
-// ─── In-memory cache (30 seconds) ────────────────────────────────────────────
+// ─── In-memory cache + single-flight (stampede protection) ──────────────────
+//
+// NOTE: This cache is per-process. In a serverless environment (e.g. Vercel)
+// each cold start gets a fresh instance — the cache only helps within the
+// lifetime of a warm instance. That is acceptable: the goal is to coalesce
+// concurrent requests hitting the same warm instance, not cross-instance
+// sharing (which would require an external store like Redis/KV).
+//
+// Single-flight: if multiple requests arrive while a DB fetch is in progress,
+// they all await the same Promise instead of firing N parallel queries.
 
 interface CacheEntry {
   data: unknown
@@ -12,6 +21,8 @@ interface CacheEntry {
 }
 
 let statusCache: CacheEntry | null = null
+// Holds the in-flight DB query so concurrent requests can share it.
+let inflight: Promise<unknown> | null = null
 
 // ─── Route Handler ────────────────────────────────────────────────────────────
 
@@ -20,11 +31,27 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  // Return cached result if still fresh
+  // Return cached result if still fresh (avoids DB entirely).
   if (statusCache !== null && Date.now() < statusCache.expiresAt) {
     return NextResponse.json(statusCache.data)
   }
 
+  // Single-flight: reuse an already-running DB query if one is in progress.
+  if (!inflight) {
+    inflight = computeStatus().finally(() => {
+      inflight = null
+    })
+  }
+
+  const data = await inflight
+  // Update cache — multiple concurrent waiters will each write the same value,
+  // which is harmless (last writer wins, all values are identical).
+  statusCache = { data, expiresAt: Date.now() + 30_000 }
+
+  return NextResponse.json(data)
+}
+
+async function computeStatus() {
   const [lastSession, tokenExists, totalCounts] = await Promise.all([
     prisma.ouraSyncSession.findFirst({
       orderBy: { startedAt: "desc" },
@@ -99,8 +126,5 @@ export async function GET(request: NextRequest) {
     },
   }
 
-  // Store in cache for 30 seconds
-  statusCache = { data: responseData, expiresAt: Date.now() + 30_000 }
-
-  return NextResponse.json(responseData)
+  return responseData
 }

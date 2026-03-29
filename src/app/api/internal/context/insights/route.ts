@@ -60,17 +60,25 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   if (shouldRegenerate) {
     // Re-evaluate rules and upsert into DB — use return value directly (no extra DB query)
-    const generated = await generateInsights(day)
-    insights = generated.map((g) => ({
-      insightType: g.insightType,
-      severity: g.severity as "info" | "warning" | "alert",
-      title: g.title,
-      message: g.message,
-      ...(g.metadata != null
-        ? { metadata: g.metadata as Record<string, unknown> }
-        : {}),
-    }))
-    persistedCount = generated.length
+    try {
+      const generated = await generateInsights(day)
+      insights = generated.map((g) => ({
+        insightType: g.insightType,
+        severity: g.severity as "info" | "warning" | "alert",
+        title: g.title,
+        message: g.message,
+        ...(g.metadata != null
+          ? { metadata: g.metadata as Record<string, unknown> }
+          : {}),
+      }))
+      persistedCount = generated.length
+    } catch (err) {
+      console.error("[insights] Generation failed:", err)
+      return NextResponse.json(
+        { error: "Insight generation failed", day },
+        { status: 500 },
+      )
+    }
     regenerated = true
   } else {
     // Serve cached insights from DB
