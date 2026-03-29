@@ -1,6 +1,13 @@
 import "server-only";
-import { prisma } from "@/lib/prisma";
 import { subDays, format, isToday, parseISO } from "date-fns";
+import {
+  getRawSleepDaily,
+  getRawSleepPeriods,
+  getRawSleepPhaseData,
+  getRawStressDaily,
+  getRawCardiovascularAgeRange,
+  getRawHeartRateEntriesInRange,
+} from "@/features/oura/server/data";
 
 // ─── Period ───────────────────────────────────────────────────────────────────
 
@@ -53,23 +60,7 @@ export async function getSleepChartData(
 ): Promise<SleepChartPoint[]> {
   const { start, end } = getDateRange(period, selectedDate);
 
-  const rows = await prisma.ouraSleepDaily.findMany({
-    where: {
-      day: { gte: start, lte: end },
-    },
-    select: {
-      day: true,
-      totalSleepSeconds: true,
-      deepSleepSeconds: true,
-      lightSleepSeconds: true,
-      remSleepSeconds: true,
-      efficiency: true,
-      score: true,
-      averageBreath: true,
-      averageHrv: true,
-    },
-    orderBy: { day: "asc" },
-  });
+  const rows = await getRawSleepDaily(start, end);
 
   return rows.map((row) => ({
     day: row.day,
@@ -102,21 +93,9 @@ export async function getMetricsData(
   const { start, end } = getDateRange(period, selectedDate);
 
   const [sleepRows, cardioRows, stressRows] = await Promise.all([
-    prisma.ouraSleepDaily.findMany({
-      where: { day: { gte: start, lte: end } },
-      select: { day: true, lowestHeartRate: true },
-      orderBy: { day: "asc" },
-    }),
-    prisma.ouraCardiovascularAge.findMany({
-      where: { day: { gte: start, lte: end } },
-      select: { day: true, vascularAge: true },
-      orderBy: { day: "asc" },
-    }),
-    prisma.ouraStressDaily.findMany({
-      where: { day: { gte: start, lte: end } },
-      select: { day: true, stressHighSeconds: true, recoveryHighSeconds: true },
-      orderBy: { day: "asc" },
-    }),
+    getRawSleepDaily(start, end),
+    getRawCardiovascularAgeRange(start, end),
+    getRawStressDaily(start, end),
   ]);
 
   // Build maps for fast lookups
@@ -173,11 +152,7 @@ export async function getIntradayHeartRate(
   const gte = new Date(dayStart.getTime() - 14 * 60 * 60 * 1000);
   const lte = new Date(dayStart.getTime() + 38 * 60 * 60 * 1000);
 
-  const entries = await prisma.ouraHeartRateEntry.findMany({
-    where: { timestamp: { gte, lte } },
-    select: { bpm: true, timestamp: true },
-    orderBy: { timestamp: "asc" },
-  });
+  const entries = await getRawHeartRateEntriesInRange(gte, lte);
 
   if (entries.length === 0) return [];
 
@@ -244,10 +219,7 @@ interface OuraHeartRateData {
 export async function getSleepIntradayData(
   date: string,
 ): Promise<SleepIntradayPoint[]> {
-  const records = await prisma.ouraSleepPeriod.findMany({
-    where: { day: date },
-    select: { heartRateData: true, sleepType: true },
-  });
+  const records = await getRawSleepPeriods(date);
 
   // Prefer long_sleep period, fallback to any period with HR data
   const record =
@@ -293,10 +265,7 @@ export interface SleepPhasePoint {
 export async function getSleepPhaseData(
   date: string,
 ): Promise<SleepPhasePoint[]> {
-  const records = await prisma.ouraSleepPeriod.findMany({
-    where: { day: date },
-    select: { sleepPhaseData: true, sleepType: true, bedtimeStart: true },
-  });
+  const records = await getRawSleepPhaseData(date);
 
   // Prefer long_sleep, fallback to any with sleepPhaseData
   const record =
@@ -331,14 +300,7 @@ export async function getStressIntradayData(
   const gte = new Date(dayStart.getTime() - 14 * 60 * 60 * 1000);
   const lte = new Date(dayStart.getTime() + 38 * 60 * 60 * 1000);
 
-  const entries = await prisma.ouraHeartRateEntry.findMany({
-    where: {
-      timestamp: { gte, lte },
-      NOT: { source: "sleep" },
-    },
-    select: { bpm: true, timestamp: true },
-    orderBy: { timestamp: "asc" },
-  });
+  const entries = await getRawHeartRateEntriesInRange(gte, lte, "sleep");
 
   if (entries.length === 0) return [];
 

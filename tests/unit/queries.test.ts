@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { getDateRange } from "@/features/oura/server/queries";
+import { getDateRange } from "@/lib/utils/date-range";
 
 describe("getDateRange", () => {
   beforeEach(() => {

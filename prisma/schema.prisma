@@ -339,9 +339,10 @@ model OuraSyncSession {
   recordsInserted Int       @default(0)
   recordsUpdated  Int       @default(0)
   recordsSkipped  Int       @default(0)
-  errorMessage    String?
-  errorDetails    Json?
-  createdAt       DateTime  @default(now())
+  errorMessage            String?
+  errorDetails            Json?
+  unavailableEndpoints    String[] @default([])
+  createdAt               DateTime  @default(now())
 }
 
 // ─── Gaps & Patterns ─────────────────────────────────────────────────────────

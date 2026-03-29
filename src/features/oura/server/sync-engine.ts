@@ -2,7 +2,9 @@ import { prisma } from "@/lib/prisma"
 import { fetchEndpoint } from "@/lib/oura/client"
 import { getValidAccessToken } from "@/lib/oura/oauth"
 import { NORMALIZERS } from "@/lib/oura/normalizers"
+import { OURA_ENDPOINTS } from "@/lib/oura/endpoints"
 import type { EndpointKey } from "@/lib/oura/endpoints"
+import { OuraApiError } from "@/lib/oura/pagination"
 
 export const NON_WEAR_THRESHOLD_SECONDS = 28_800 // 8 hours
 
@@ -14,12 +16,16 @@ export interface SyncOptions {
   source?: string
 }
 
+export type SyncWarning = { endpoint: string; code: "unavailable"; message: string }
+
 export interface SyncResult {
   sessionId: string
   status: "success" | "partial" | "error"
   recordsInserted: number
   recordsUpdated: number
   recordsSkipped: number
+  warnings: SyncWarning[]
+  unavailableEndpoints: string[]
   errors: Array<{ endpoint: string; message: string }>
 }
 
@@ -38,6 +44,8 @@ export async function syncEndpoints(options: SyncOptions): Promise<SyncResult> {
   let totalUpdated = 0
   let totalSkipped = 0
   const errors: Array<{ endpoint: string; message: string }> = []
+  const warnings: SyncWarning[] = []
+  const unavailableEndpoints: string[] = []
 
   try {
     const accessToken = await getValidAccessToken()
@@ -67,10 +75,24 @@ export async function syncEndpoints(options: SyncOptions): Promise<SyncResult> {
         totalUpdated += result.updated
         totalSkipped += result.skipped
       } catch (err) {
-        errors.push({
-          endpoint,
-          message: err instanceof Error ? err.message : String(err),
-        })
+        const isOptional404 =
+          err instanceof OuraApiError &&
+          err.status === 404 &&
+          OURA_ENDPOINTS[endpoint]?.availabilityPolicy === "optional"
+
+        if (isOptional404) {
+          warnings.push({
+            endpoint,
+            code: "unavailable",
+            message: err instanceof Error ? err.message : String(err),
+          })
+          unavailableEndpoints.push(endpoint)
+        } else {
+          errors.push({
+            endpoint,
+            message: err instanceof Error ? err.message : String(err),
+          })
+        }
       }
     }
 
@@ -97,6 +119,7 @@ export async function syncEndpoints(options: SyncOptions): Promise<SyncResult> {
           errors.length > 0
             ? (errors as unknown as import("@prisma/client").Prisma.InputJsonValue)
             : undefined,
+        unavailableEndpoints: unavailableEndpoints,
       },
     })
 
@@ -106,6 +129,8 @@ export async function syncEndpoints(options: SyncOptions): Promise<SyncResult> {
       recordsInserted: totalInserted,
       recordsUpdated: totalUpdated,
       recordsSkipped: totalSkipped,
+      warnings,
+      unavailableEndpoints,
       errors,
     }
   } catch (err) {

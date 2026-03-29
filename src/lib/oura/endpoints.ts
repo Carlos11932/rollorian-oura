@@ -20,6 +20,8 @@ export type EndpointKey =
 
 export type DateParamType = "date" | "datetime" | "none"
 
+export type AvailabilityPolicy = "required" | "optional"
+
 export interface EndpointConfig {
   path: string
   dateParamType: DateParamType
@@ -27,6 +29,7 @@ export interface EndpointConfig {
   requiresChunking: boolean
   chunkDays?: number
   isPaginated: boolean
+  availabilityPolicy: AvailabilityPolicy
 }
 
 export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
@@ -36,6 +39,7 @@ export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
     scope: "personal",
     requiresChunking: false,
     isPaginated: false,
+    availabilityPolicy: "required",
   },
   daily_activity: {
     path: "daily_activity",
@@ -43,6 +47,7 @@ export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
     scope: "daily",
     requiresChunking: false,
     isPaginated: true,
+    availabilityPolicy: "required",
   },
   daily_readiness: {
     path: "daily_readiness",
@@ -50,6 +55,7 @@ export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
     scope: "daily",
     requiresChunking: false,
     isPaginated: true,
+    availabilityPolicy: "required",
   },
   daily_sleep: {
     path: "daily_sleep",
@@ -57,6 +63,7 @@ export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
     scope: "daily",
     requiresChunking: false,
     isPaginated: true,
+    availabilityPolicy: "required",
   },
   daily_spo2: {
     path: "daily_spo2",
@@ -64,6 +71,7 @@ export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
     scope: "spo2",
     requiresChunking: false,
     isPaginated: true,
+    availabilityPolicy: "optional",
   },
   daily_stress: {
     path: "daily_stress",
@@ -71,6 +79,7 @@ export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
     scope: "daily",
     requiresChunking: false,
     isPaginated: true,
+    availabilityPolicy: "required",
   },
   daily_resilience: {
     path: "daily_resilience",
@@ -78,6 +87,7 @@ export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
     scope: "stress",
     requiresChunking: false,
     isPaginated: true,
+    availabilityPolicy: "optional",
   },
   daily_cardiovascular_age: {
     path: "daily_cardiovascular_age",
@@ -85,6 +95,7 @@ export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
     scope: "heart_health",
     requiresChunking: false,
     isPaginated: true,
+    availabilityPolicy: "optional",
   },
   vo2_max: {
     path: "vo2_max",
@@ -92,6 +103,7 @@ export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
     scope: "daily",
     requiresChunking: false,
     isPaginated: true,
+    availabilityPolicy: "optional",
   },
   sleep: {
     path: "sleep",
@@ -99,6 +111,7 @@ export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
     scope: "daily",
     requiresChunking: false,
     isPaginated: true,
+    availabilityPolicy: "required",
   },
   sleep_time: {
     path: "sleep_time",
@@ -106,6 +119,7 @@ export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
     scope: "daily",
     requiresChunking: false,
     isPaginated: true,
+    availabilityPolicy: "optional",
   },
   heartrate: {
     path: "heartrate",
@@ -114,6 +128,7 @@ export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
     requiresChunking: true,
     chunkDays: 30,
     isPaginated: true,
+    availabilityPolicy: "required",
   },
   session: {
     path: "session",
@@ -121,6 +136,7 @@ export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
     scope: "session",
     requiresChunking: false,
     isPaginated: true,
+    availabilityPolicy: "optional",
   },
   workout: {
     path: "workout",
@@ -128,6 +144,7 @@ export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
     scope: "workout",
     requiresChunking: false,
     isPaginated: true,
+    availabilityPolicy: "optional",
   },
   tag: {
     path: "tag",
@@ -135,6 +152,7 @@ export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
     scope: "tag",
     requiresChunking: false,
     isPaginated: true,
+    availabilityPolicy: "optional",
   },
   enhanced_tag: {
     path: "enhanced_tag",
@@ -142,6 +160,7 @@ export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
     scope: "tag",
     requiresChunking: false,
     isPaginated: true,
+    availabilityPolicy: "optional",
   },
   rest_mode_period: {
     path: "rest_mode_period",
@@ -149,6 +168,7 @@ export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
     scope: "daily",
     requiresChunking: false,
     isPaginated: true,
+    availabilityPolicy: "optional",
   },
   ring_configuration: {
     path: "ring_configuration",
@@ -156,6 +176,7 @@ export const OURA_ENDPOINTS: Record<EndpointKey, EndpointConfig> = {
     scope: "ring_configuration",
     requiresChunking: false,
     isPaginated: false,
+    availabilityPolicy: "optional",
   },
 }
 

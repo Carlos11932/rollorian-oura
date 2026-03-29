@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { NextResponse } from "next/server"
 import { buildAuthorizationUrl } from "@/lib/oura/oauth"
+import { cookies } from "next/headers"
 import crypto from "crypto"
 
 export async function GET() {
@@ -20,6 +21,13 @@ export async function GET() {
   const state = crypto.randomBytes(16).toString("hex")
   const url = buildAuthorizationUrl(clientId, redirectUri, state)
 
-  // TODO: store state in a cookie and verify in callback
+  const cookieStore = await cookies()
+  cookieStore.set("oura_oauth_state", state, {
+    httpOnly: true,
+    path: "/api/auth/oura",
+    sameSite: "lax",
+    maxAge: 600,
+  })
+
   return NextResponse.redirect(url)
 }

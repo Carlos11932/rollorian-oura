@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from "next/server"
 import { exchangeCodeForTokens, saveTokens } from "@/lib/oura/oauth"
+import { cookies } from "next/headers"
 
 export async function GET(request: NextRequest) {
   const baseUrl =
@@ -10,11 +11,24 @@ export async function GET(request: NextRequest) {
 
   const searchParams = request.nextUrl.searchParams
   const code = searchParams.get("code")
+  const state = searchParams.get("state")
   const error = searchParams.get("error")
 
   if (error) {
     return NextResponse.redirect(`${baseUrl}/?error=${encodeURIComponent(error)}`)
   }
+
+  // Verify CSRF state cookie
+  const cookieStore = await cookies()
+  const storedState = cookieStore.get("oura_oauth_state")?.value
+
+  if (!storedState || !state || storedState !== state) {
+    cookieStore.delete("oura_oauth_state")
+    return NextResponse.json({ error: "invalid_state" }, { status: 400 })
+  }
+
+  // Clear the state cookie now that it has been verified
+  cookieStore.delete("oura_oauth_state")
 
   if (!code) {
     return NextResponse.redirect(`${baseUrl}/?error=missing_code`)
