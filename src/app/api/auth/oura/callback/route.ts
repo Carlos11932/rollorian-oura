@@ -57,9 +57,7 @@ export async function GET(request: NextRequest) {
     await saveTokens(tokens)
     return NextResponse.redirect(`${baseUrl}/dashboard?connected=true`)
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error"
     console.error("[oura/callback] OAuth error:", err)
-    // Return JSON so we can see the actual error in the browser
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json({ error: "OAuth exchange failed" }, { status: 500 })
   }
 }

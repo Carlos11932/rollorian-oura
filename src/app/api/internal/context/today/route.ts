@@ -52,8 +52,8 @@ interface ActivitySection {
 }
 
 interface StressSection {
-  stressHigh: number | null
-  recoveryHigh: number | null
+  stressHighMinutes: number | null
+  recoveryHighMinutes: number | null
   daytimeStress: string | null
 }
 
@@ -199,8 +199,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     stress: stress
       ? {
-          stressHigh: stress.stressHighSeconds ?? null,
-          recoveryHigh: stress.recoveryHighSeconds ?? null,
+          stressHighMinutes: stress.stressHighSeconds != null ? Math.round(stress.stressHighSeconds / 60) : null,
+          recoveryHighMinutes: stress.recoveryHighSeconds != null ? Math.round(stress.recoveryHighSeconds / 60) : null,
           daytimeStress: stress.daySummary ?? null,
         }
       : null,

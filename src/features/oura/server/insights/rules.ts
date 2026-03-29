@@ -92,7 +92,7 @@ const lowHrv: InsightRule = {
     if (trend.length === 0) return null
 
     const avgHrv =
-      trend.reduce((acc, s) => acc + (s.averageHrv ?? 0), 0) / trend.length
+      trend.reduce((acc, s) => acc + s.averageHrv!, 0) / trend.length
     const dropPercent = ((avgHrv - currentHrv) / avgHrv) * 100
 
     if (dropPercent <= 20) return null

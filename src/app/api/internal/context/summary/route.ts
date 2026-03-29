@@ -233,19 +233,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const stressHighMinutes = secondsToMinutes(stress?.stressHighSeconds)
   const recoveryHighMinutes = secondsToMinutes(stress?.recoveryHighSeconds)
 
-  // Evaluate all factors
-  const factors: Factor[] = [
+  // Evaluate the 5 threshold-based factors used for state computation
+  const scoringFactors: Factor[] = [
     evalSleepScore(sleep?.score ?? null),
-    evalHrv(sleep?.averageHrv ?? null),
     evalEfficiency(sleep?.efficiency ?? null),
     evalStressHigh(stressHighMinutes),
     evalRecoveryHigh(recoveryHighMinutes),
-    evalRestingHr(sleep?.lowestHeartRate ?? null),
     evalReadinessScore(readiness?.score ?? null),
   ]
 
-  const state = computeState(factors)
-  const headline = generateHeadline(state, factors)
+  const state = computeState(scoringFactors)
+  const headline = generateHeadline(state, scoringFactors)
+
+  // Build full factors array: scoring factors first, then informational-only
+  const factors: Factor[] = [
+    ...scoringFactors,
+    evalHrv(sleep?.averageHrv ?? null),
+    evalRestingHr(sleep?.lowestHeartRate ?? null),
+  ]
 
   // Include optional vitals as informational neutral factors if available
   if (spo2?.spo2Average != null) {

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { OuraSleepDaily, OuraSleepPeriod } from "@prisma/client";
+import { subDays, format } from "date-fns";
 
 // ─── Raw Sleep Daily ──────────────────────────────────────────────────────────
 
@@ -59,10 +60,11 @@ export async function getRawSleepPhaseData(day: string): Promise<
 // ─── Raw Sleep Trend ──────────────────────────────────────────────────────────
 
 export async function getRawSleepTrend(days: number): Promise<OuraSleepDaily[]> {
-  // Use offset to get last N records ordered by day desc, then re-sort asc
+  // Use a calendar-day range so we get exactly N calendar days (inclusive of today)
+  const fromDay = format(subDays(new Date(), days - 1), "yyyy-MM-dd");
   const rows = await prisma.ouraSleepDaily.findMany({
+    where: { day: { gte: fromDay } },
     orderBy: { day: "desc" },
-    take: days,
   });
 
   return rows.reverse();

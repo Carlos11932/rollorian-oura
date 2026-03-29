@@ -56,16 +56,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   let insights: InsightItem[]
   let regenerated: boolean
 
+  let persistedCount: number
+
   if (shouldRegenerate) {
-    // Re-evaluate rules and upsert into DB
+    // Re-evaluate rules and upsert into DB — use return value directly (no extra DB query)
     const generated = await generateInsights(day)
     insights = generated.map((g) => ({
       insightType: g.insightType,
-      severity: g.severity,
+      severity: g.severity as "info" | "warning" | "alert",
       title: g.title,
       message: g.message,
-      ...(g.metadata != null ? { metadata: g.metadata } : {}),
+      ...(g.metadata != null
+        ? { metadata: g.metadata as Record<string, unknown> }
+        : {}),
     }))
+    persistedCount = generated.length
     regenerated = true
   } else {
     // Serve cached insights from DB
@@ -79,13 +84,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         ? { metadata: s.metadata as Record<string, unknown> }
         : {}),
     }))
+    persistedCount = stored.length
     regenerated = false
   }
 
   const response: InsightsResponse = {
     day,
     generated: insights,
-    persisted: insights.length,
+    persisted: persistedCount,
     stale,
     regenerated,
   }

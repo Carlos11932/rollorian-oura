@@ -31,6 +31,7 @@ export async function getRawHeartRateEntriesInRange(
       ...(excludeSource ? { NOT: { source: excludeSource } } : {}),
     },
     orderBy: { timestamp: "asc" },
+    take: 10000,
   });
 }
 

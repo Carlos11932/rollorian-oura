@@ -93,33 +93,30 @@ export async function generateInsights(day: string): Promise<GeneratedInsight[]>
           metadata: result.metadata,
         })
       }
-    } catch {
-      // Rule evaluation must never crash the engine — skip silently
+    } catch (err) {
+      // Rule evaluation must never crash the engine — log and skip
+      console.error(`[insights] Rule ${rule.id} failed:`, err)
     }
   }
 
   // Upsert: delete all existing rule-generated insights for this day, then create new ones
-  await prisma.$transaction([
-    prisma.ouraInsight.deleteMany({
-      where: { day, generatedBy: GENERATED_BY },
-    }),
-    ...(candidates.length > 0
-      ? [
-          prisma.ouraInsight.createMany({
-            data: candidates.map((c) => ({
-              day,
-              insightType: c.insightType,
-              severity: c.severity,
-              title: c.title,
-              message: c.message,
-              metadata: c.metadata != null ? (c.metadata as Prisma.InputJsonValue) : Prisma.JsonNull,
-              generatedBy: GENERATED_BY,
-              acknowledged: false,
-            })),
-          }),
-        ]
-      : []),
-  ])
+  await prisma.$transaction(async (tx) => {
+    await tx.ouraInsight.deleteMany({ where: { day, generatedBy: GENERATED_BY } })
+    if (candidates.length > 0) {
+      await tx.ouraInsight.createMany({
+        data: candidates.map((c) => ({
+          day,
+          insightType: c.insightType,
+          severity: c.severity,
+          title: c.title,
+          message: c.message,
+          metadata: c.metadata != null ? (c.metadata as Prisma.InputJsonValue) : Prisma.JsonNull,
+          generatedBy: GENERATED_BY,
+          acknowledged: false,
+        })),
+      })
+    }
+  })
 
   return candidates
 }

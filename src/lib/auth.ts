@@ -5,8 +5,10 @@ export function validateInternalApiKey(request: NextRequest): boolean {
   const key = request.headers.get("x-api-key") ?? ""
   const expected = process.env["INTERNAL_API_KEY"] ?? ""
   if (expected.length === 0) return false
-  const a = Buffer.from(key)
-  const b = Buffer.from(expected)
-  if (a.length !== b.length) return false
-  return crypto.timingSafeEqual(a, b)
+  // Use HMAC comparison so both operands are always the same length,
+  // eliminating the length-leaking early return.
+  const constant = "internal-api-key-comparison"
+  const hmacKey = crypto.createHmac("sha256", constant).update(key).digest()
+  const hmacExpected = crypto.createHmac("sha256", constant).update(expected).digest()
+  return crypto.timingSafeEqual(hmacKey, hmacExpected)
 }

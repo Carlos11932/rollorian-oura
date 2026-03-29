@@ -4,9 +4,25 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { validateInternalApiKey } from "@/lib/auth"
 
+// ─── In-memory cache (30 seconds) ────────────────────────────────────────────
+
+interface CacheEntry {
+  data: unknown
+  expiresAt: number
+}
+
+let statusCache: CacheEntry | null = null
+
+// ─── Route Handler ────────────────────────────────────────────────────────────
+
 export async function GET(request: NextRequest) {
   if (!validateInternalApiKey(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  // Return cached result if still fresh
+  if (statusCache !== null && Date.now() < statusCache.expiresAt) {
+    return NextResponse.json(statusCache.data)
   }
 
   const [lastSession, tokenExists, totalCounts] = await Promise.all([
@@ -43,7 +59,7 @@ export async function GET(request: NextRequest) {
     ]),
   ])
 
-  return NextResponse.json({
+  const responseData = {
     connected: tokenExists,
     lastSync: lastSession
       ? {
@@ -81,5 +97,10 @@ export async function GET(request: NextRequest) {
       gapPatterns: totalCounts[21],
       activityGaps: totalCounts[22],
     },
-  })
+  }
+
+  // Store in cache for 30 seconds
+  statusCache = { data: responseData, expiresAt: Date.now() + 30_000 }
+
+  return NextResponse.json(responseData)
 }

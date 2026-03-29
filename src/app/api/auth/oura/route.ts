@@ -24,9 +24,10 @@ export async function GET() {
   const cookieStore = await cookies()
   cookieStore.set("oura_oauth_state", state, {
     httpOnly: true,
-    path: "/api/auth/oura",
+    path: "/api/auth/oura/callback",
     sameSite: "lax",
     maxAge: 600,
+    secure: process.env.NODE_ENV === "production",
   })
 
   return NextResponse.redirect(url)

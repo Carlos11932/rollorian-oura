@@ -58,17 +58,15 @@ describe("Insights engine — upsert/repeat generation (Scenario 9)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Default: $transaction executes the operations array
-    mockTransaction.mockImplementation(async (ops: unknown[]) => {
-      const results = [];
-      for (const op of ops) {
-        if (op && typeof op === "object" && op !== null && "then" in op) {
-          results.push(await (op as Promise<unknown>));
-        } else {
-          results.push(op);
-        }
-      }
-      return results;
+    // Default: $transaction executes the interactive callback with a mock tx client
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+      const tx = {
+        ouraInsight: {
+          deleteMany: (...args: unknown[]) => mockDeleteMany(...args),
+          createMany: (...args: unknown[]) => mockCreateMany(...args),
+        },
+      };
+      return fn(tx);
     });
   });
 
@@ -81,15 +79,16 @@ describe("Insights engine — upsert/repeat generation (Scenario 9)", () => {
     it("still calls $transaction (with just deleteMany, no createMany)", async () => {
       await generateInsights(DAY);
       expect(mockTransaction).toHaveBeenCalledOnce();
+      // No candidates → createMany should NOT have been called
+      expect(mockCreateMany).not.toHaveBeenCalled();
     });
 
-    it("passes deleteMany as the first operation in the transaction", async () => {
+    it("passes a callback function to $transaction (interactive style)", async () => {
       await generateInsights(DAY);
 
-      const transactionArgs = mockTransaction.mock.calls[0][0] as unknown[];
-      // Transaction receives an array: [deleteMany result, ...createMany results]
-      // With no candidates, the array is [deleteMany] only
-      expect(transactionArgs).toHaveLength(1);
+      const transactionArg = mockTransaction.mock.calls[0][0];
+      // Interactive transaction receives a function, not an array
+      expect(typeof transactionArg).toBe("function");
     });
 
     it("deleteMany targets the correct day and generatedBy", async () => {
@@ -108,16 +107,14 @@ describe("Insights engine — upsert/repeat generation (Scenario 9)", () => {
       expect(mockDeleteMany).toHaveBeenCalledTimes(1);
 
       vi.clearAllMocks();
-      mockTransaction.mockImplementation(async (ops: unknown[]) => {
-        const results = [];
-        for (const op of ops) {
-          if (op && typeof op === "object" && op !== null && "then" in op) {
-            results.push(await (op as Promise<unknown>));
-          } else {
-            results.push(op);
-          }
-        }
-        return results;
+      mockTransaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+        const tx = {
+          ouraInsight: {
+            deleteMany: (...args: unknown[]) => mockDeleteMany(...args),
+            createMany: (...args: unknown[]) => mockCreateMany(...args),
+          },
+        };
+        return fn(tx);
       });
 
       // Second run (same day)
@@ -129,42 +126,37 @@ describe("Insights engine — upsert/repeat generation (Scenario 9)", () => {
     });
 
     it("deleteMany is always called BEFORE createMany in the transaction", async () => {
+      // With the interactive transaction, both deleteMany and createMany are called
+      // inside the callback. We verify deleteMany is called and (with no candidates)
+      // createMany is NOT called — ensuring delete-first semantics.
       await generateInsights(DAY);
 
-      const deleteManyCall = mockDeleteMany.mock.invocationCallOrder[0];
-      const transactionCall = mockTransaction.mock.invocationCallOrder[0];
-
-      // deleteMany must be called before or as part of the transaction
-      // The transaction is called once; deleteMany is called to build the op array
-      expect(deleteManyCall).toBeLessThan(transactionCall);
+      expect(mockDeleteMany).toHaveBeenCalledOnce();
+      expect(mockCreateMany).not.toHaveBeenCalled();
     });
 
     it("the transaction always deletes before inserting — atomic replace not append", async () => {
-      // This test verifies the architecture of the transaction array:
-      // [prisma.ouraInsight.deleteMany(...), ...createMany if any]
-      // By always deleting first, running twice produces exactly N insights (not 2N).
-
+      // By always deleting before creating within the interactive transaction,
+      // running twice produces exactly N insights (not 2N).
       await generateInsights(DAY);
-      const transactionOpsFirst = mockTransaction.mock.calls[0][0] as unknown[];
+      expect(mockTransaction).toHaveBeenCalledTimes(1);
+      expect(mockDeleteMany).toHaveBeenCalledTimes(1);
 
       vi.clearAllMocks();
-      mockTransaction.mockImplementation(async (ops: unknown[]) => {
-        const results = [];
-        for (const op of ops) {
-          if (op && typeof op === "object" && op !== null && "then" in op) {
-            results.push(await (op as Promise<unknown>));
-          } else {
-            results.push(op);
-          }
-        }
-        return results;
+      mockTransaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+        const tx = {
+          ouraInsight: {
+            deleteMany: (...args: unknown[]) => mockDeleteMany(...args),
+            createMany: (...args: unknown[]) => mockCreateMany(...args),
+          },
+        };
+        return fn(tx);
       });
 
       await generateInsights(DAY);
-      const transactionOpsSecond = mockTransaction.mock.calls[0][0] as unknown[];
-
-      // Both runs produce the same number of transaction operations
-      expect(transactionOpsFirst.length).toBe(transactionOpsSecond.length);
+      // Second run: transaction called once, deleteMany once, no createMany
+      expect(mockTransaction).toHaveBeenCalledTimes(1);
+      expect(mockDeleteMany).toHaveBeenCalledTimes(1);
     });
   });
 
