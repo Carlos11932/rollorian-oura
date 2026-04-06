@@ -1,0 +1,16 @@
+{
+  "window": "7d",
+  "sleep": {
+    "points": [],
+    "averages": {
+      "totalSleepHours": 7.4,
+      "efficiency": 86.5,
+      "score": 82.1,
+      "averageHrv": 38.2
+    }
+  },
+  "activity": [],
+  "stress": [],
+  "readiness": [],
+  "generatedAt": "2026-04-06T18:40:00.000Z"
+}
