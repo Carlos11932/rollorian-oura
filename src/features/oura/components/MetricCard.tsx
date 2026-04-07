@@ -28,7 +28,6 @@ interface MetricCardProps {
   label: string;
   value: string | number | null;
   unit?: string;
-  trend?: number[];
   featured?: boolean;
   color?: CardColor;
   className?: string;
@@ -38,7 +37,6 @@ export function MetricCard({
   label,
   value,
   unit,
-  trend,
   featured = false,
   color = "primary",
   className,

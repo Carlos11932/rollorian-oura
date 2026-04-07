@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Rollorian Oura
 
-## Getting Started
+Aplicacion Next.js para consumir la API de Oura, persistir datos en Postgres y exponer:
 
-First, run the development server:
+- interfaz propia de salud y recuperacion
+- rutas internas para Donna
+- sincronizacion manual y por cron
+
+## Arquitectura de datos
+
+- El runtime usa Prisma con el schema `oura`.
+- La base puede estar compartida con otras apps, asi que este proyecto no debe mutar la DB durante `build`.
+- Los cambios de schema deben ejecutarse con comandos explicitos de Prisma.
+
+## Variables de entorno
+
+Consulta [.env.example](/Users/Carlo/AppData/Local/Temp/donna-impl/rollorian-oura/.env.example).
+
+Minimas para runtime:
+
+- `DATABASE_URL`
+- `OURA_CLIENT_ID`
+- `OURA_CLIENT_SECRET`
+- `INTERNAL_API_KEY`
+- `CRON_SECRET`
+
+Para OAuth web:
+
+- `NEXTAUTH_URL`
+- `OURA_REDIRECT_URI` opcional para sobreescribir la callback inferida
+
+`DIRECT_URL` se usa solo para Prisma CLI y migraciones.
+
+## Desarrollo
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Build y despliegue
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+El build ya no ejecuta `prisma db push`.
 
-## Learn More
+Para cambios de schema en desarrollo:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run db:migrate
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Para aplicar migraciones en despliegue:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run db:migrate:deploy
+```
 
-## Deploy on Vercel
+## Validacion
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm test
+npm run lint
+```

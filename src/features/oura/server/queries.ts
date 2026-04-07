@@ -1,331 +1,290 @@
-import "server-only";
-import { subDays, format, isToday, parseISO } from "date-fns";
+import "server-only"
+import { isToday, parseISO } from "date-fns"
+import { getDateRange } from "@/lib/utils/date-range"
 import {
-  getRawSleepDaily,
+  BUSINESS_TIME_ZONE,
+  formatTimeInZone,
+  getBucketTimeInZone,
+  getLocalDayString,
+} from "@/lib/utils/day"
+import {
+  getRawHeartRateEntriesInRange,
   getRawSleepPeriods,
   getRawSleepPhaseData,
-  getRawStressDaily,
-  getRawCardiovascularAgeRange,
-  getRawHeartRateEntriesInRange,
-} from "@/features/oura/server/data";
+} from "@/features/oura/server/data"
+import {
+  getDailyHealthSnapshot,
+  getDailyHealthTrend,
+  secondsToHours,
+  secondsToMinutes,
+} from "@/features/oura/server/health-snapshot"
 
-// ─── Period ───────────────────────────────────────────────────────────────────
-
-const PERIOD = {
-  "1d": 1,
-  "7d": 7,
-  "14d": 14,
-  "30d": 30,
-  "90d": 90,
-} as const;
-
-export type Period = keyof typeof PERIOD;
-
-function getDateRange(
-  period: Period,
-  selectedDate?: string,
-): { start: string; end: string } {
-  if (period === "1d") {
-    const day =
-      selectedDate && /^\d{4}-\d{2}-\d{2}$/.test(selectedDate)
-        ? selectedDate
-        : format(new Date(), "yyyy-MM-dd");
-    return { start: day, end: day };
-  }
-  const end = new Date();
-  const start = subDays(end, PERIOD[period]);
-  return {
-    start: format(start, "yyyy-MM-dd"),
-    end: format(end, "yyyy-MM-dd"),
-  };
-}
-
-// ─── Sleep Chart Data ─────────────────────────────────────────────────────────
+export type Period = "1d" | "7d" | "14d" | "30d" | "90d"
 
 export interface SleepChartPoint {
-  day: string;
-  totalHours: number;
-  deep: number;
-  light: number;
-  rem: number;
-  efficiency: number | null;
-  score: number | null;
-  averageBreath: number | null;
-  averageHrv: number | null;
+  day: string
+  totalHours: number | null
+  deep: number | null
+  light: number | null
+  rem: number | null
+  efficiency: number | null
+  score: number | null
+  averageBreath: number | null
+  averageHrv: number | null
+  source: "daily_sleep" | "sleep_period" | "mixed" | null
+  isPartial: boolean
 }
 
 export async function getSleepChartData(
   period: Period,
   selectedDate?: string,
 ): Promise<SleepChartPoint[]> {
-  const { start, end } = getDateRange(period, selectedDate);
+  if (period === "1d") {
+    const day =
+      selectedDate && /^\d{4}-\d{2}-\d{2}$/.test(selectedDate)
+        ? selectedDate
+        : getLocalDayString()
+    const snapshot = await getDailyHealthSnapshot(day)
 
-  const rows = await getRawSleepDaily(start, end);
+    return [
+      {
+        day,
+        totalHours: secondsToHours(snapshot.sleep?.totalSleepSeconds),
+        deep: secondsToHours(snapshot.sleep?.deepSleepSeconds),
+        light: secondsToHours(snapshot.sleep?.lightSleepSeconds),
+        rem: secondsToHours(snapshot.sleep?.remSleepSeconds),
+        efficiency: snapshot.sleep?.efficiency ?? null,
+        score: snapshot.sleep?.score ?? null,
+        averageBreath: snapshot.sleep?.averageBreath ?? null,
+        averageHrv: snapshot.sleep?.averageHrv ?? null,
+        source: snapshot.sleep?.source ?? null,
+        isPartial: snapshot.freshness.isPartial,
+      },
+    ]
+  }
 
-  return rows.map((row) => ({
-    day: row.day,
-    totalHours: row.totalSleepSeconds ? row.totalSleepSeconds / 3600 : 0,
-    deep: row.deepSleepSeconds ? row.deepSleepSeconds / 3600 : 0,
-    light: row.lightSleepSeconds ? row.lightSleepSeconds / 3600 : 0,
-    rem: row.remSleepSeconds ? row.remSleepSeconds / 3600 : 0,
-    efficiency: row.efficiency ?? null,
-    score: row.score ?? null,
-    averageBreath: row.averageBreath ?? null,
-    averageHrv: row.averageHrv ?? null,
-  }));
+  const { startDate, endDate } = getDateRange(period, selectedDate)
+  const dayCount =
+    Math.round(
+      (parseISO(endDate).getTime() - parseISO(startDate).getTime()) / (24 * 60 * 60 * 1000),
+    ) + 1
+
+  const snapshots = await getDailyHealthTrend(dayCount)
+
+  return snapshots.map((snapshot) => ({
+    day: snapshot.day,
+    totalHours: secondsToHours(snapshot.sleep?.totalSleepSeconds),
+    deep: secondsToHours(snapshot.sleep?.deepSleepSeconds),
+    light: secondsToHours(snapshot.sleep?.lightSleepSeconds),
+    rem: secondsToHours(snapshot.sleep?.remSleepSeconds),
+    efficiency: snapshot.sleep?.efficiency ?? null,
+    score: snapshot.sleep?.score ?? null,
+    averageBreath: snapshot.sleep?.averageBreath ?? null,
+    averageHrv: snapshot.sleep?.averageHrv ?? null,
+    source: snapshot.sleep?.source ?? null,
+    isPartial: snapshot.freshness.isPartial,
+  }))
 }
 
-// ─── Metrics Data ─────────────────────────────────────────────────────────────
-
 export interface MetricsPoint {
-  day: string;
-  restingHR: number | null;
-  cardioAge: number | null;
-  stressHigh: number | null;
-  recoveryHigh: number | null;
-  [key: string]: string | number | null;
+  day: string
+  lowestHeartRate: number | null
+  cardioAge: number | null
+  stressHigh: number | null
+  recoveryHigh: number | null
+  readinessScore: number | null
+  sleepScore: number | null
+  steps: number | null
+  activeCalories: number | null
+  isPartial: boolean
+  [key: string]: string | number | null | boolean
 }
 
 export async function getMetricsData(
   period: Period,
   selectedDate?: string,
 ): Promise<MetricsPoint[]> {
-  const { start, end } = getDateRange(period, selectedDate);
+  if (period === "1d") {
+    const day =
+      selectedDate && /^\d{4}-\d{2}-\d{2}$/.test(selectedDate)
+        ? selectedDate
+        : getLocalDayString()
+    const snapshot = await getDailyHealthSnapshot(day)
 
-  const [sleepRows, cardioRows, stressRows] = await Promise.all([
-    getRawSleepDaily(start, end),
-    getRawCardiovascularAgeRange(start, end),
-    getRawStressDaily(start, end),
-  ]);
-
-  // Build maps for fast lookups
-  const cardioMap = new Map<string, number | null>(
-    cardioRows.map((r) => [r.day, r.vascularAge ?? null]),
-  );
-  const stressMap = new Map<
-    string,
-    { stressHigh: number | null; recoveryHigh: number | null }
-  >(
-    stressRows.map((r) => [
-      r.day,
+    return [
       {
-        stressHigh: r.stressHighSeconds ? r.stressHighSeconds / 60 : null,
-        recoveryHigh: r.recoveryHighSeconds
-          ? r.recoveryHighSeconds / 60
-          : null,
+        day,
+        lowestHeartRate: snapshot.sleep?.lowestHeartRate ?? null,
+        cardioAge: snapshot.vitals?.cardiovascularAge ?? null,
+        stressHigh: secondsToMinutes(snapshot.stress?.stressHighSeconds ?? null),
+        recoveryHigh: secondsToMinutes(snapshot.stress?.recoveryHighSeconds ?? null),
+        readinessScore: snapshot.readiness?.score ?? null,
+        sleepScore: snapshot.sleep?.score ?? null,
+        steps: snapshot.activity?.steps ?? null,
+        activeCalories: snapshot.activity?.activeCalories ?? null,
+        isPartial: snapshot.freshness.isPartial,
       },
-    ]),
-  );
-
-  // Collect all days from sleep (main driver)
-  const allDays = new Set<string>(sleepRows.map((r) => r.day));
-  cardioRows.forEach((r) => allDays.add(r.day));
-  stressRows.forEach((r) => allDays.add(r.day));
-
-  const sortedDays = Array.from(allDays).sort();
-
-  const sleepMap = new Map<string, number | null>(
-    sleepRows.map((r) => [r.day, r.lowestHeartRate ?? null]),
-  );
-
-  return sortedDays.map((day) => ({
-    day,
-    restingHR: sleepMap.get(day) ?? null,
-    cardioAge: cardioMap.get(day) ?? null,
-    stressHigh: stressMap.get(day)?.stressHigh ?? null,
-    recoveryHigh: stressMap.get(day)?.recoveryHigh ?? null,
-  }));
-}
-
-// ─── Intraday Heart Rate ───────────────────────────────────────────────────────
-
-export interface StressIntradayPoint {
-  hour: string; // "HH:MM"
-  bpm: number;
-}
-
-export async function getIntradayHeartRate(
-  date: string,
-): Promise<StressIntradayPoint[]> {
-  // Expand window ±14h around UTC midnight to handle any timezone offset
-  const dayStart = new Date(`${date}T00:00:00.000Z`);
-  const gte = new Date(dayStart.getTime() - 14 * 60 * 60 * 1000);
-  const lte = new Date(dayStart.getTime() + 38 * 60 * 60 * 1000);
-
-  const entries = await getRawHeartRateEntriesInRange(gte, lte);
-
-  if (entries.length === 0) return [];
-
-  // Convert timestamp to Europe/Madrid local time string "HH:MM"
-  const toMadridHHMM = (d: Date): string => {
-    const parts = new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Europe/Madrid",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).formatToParts(d);
-    const h = parts.find((p) => p.type === "hour")?.value ?? "00";
-    const m = parts.find((p) => p.type === "minute")?.value ?? "00";
-    return `${h}:${m}`;
-  };
-
-  // Group into 15-min buckets using Madrid local time
-  const bucketMap = new Map<string, number[]>();
-  for (const entry of entries) {
-    const localHHMM = toMadridHHMM(entry.timestamp);
-    const [hStr, mStr] = localHHMM.split(":");
-    const totalMinutes = parseInt(hStr) * 60 + parseInt(mStr);
-    const bucketMinutes = Math.floor(totalMinutes / 15) * 15;
-    const hh = String(Math.floor(bucketMinutes / 60)).padStart(2, "0");
-    const mm = String(bucketMinutes % 60).padStart(2, "0");
-    const key = `${hh}:${mm}`;
-    if (!bucketMap.has(key)) bucketMap.set(key, []);
-    bucketMap.get(key)!.push(entry.bpm);
+    ]
   }
 
-  const now = new Date();
-  const nowBucket = isToday(parseISO(date))
-    ? (() => {
-        const localNow = toMadridHHMM(now);
-        const [hStr, mStr] = localNow.split(":");
-        const totalMinutes = parseInt(hStr) * 60 + parseInt(mStr);
-        const bucketMinutes = Math.floor(totalMinutes / 15) * 15;
-        return `${String(Math.floor(bucketMinutes / 60)).padStart(2, "0")}:${String(bucketMinutes % 60).padStart(2, "0")}`;
-      })()
-    : null;
+  const { startDate, endDate } = getDateRange(period, selectedDate)
+  const dayCount =
+    Math.round(
+      (parseISO(endDate).getTime() - parseISO(startDate).getTime()) / (24 * 60 * 60 * 1000),
+    ) + 1
 
-  return Array.from(bucketMap.entries())
-    .filter(([time]) => nowBucket === null || time <= nowBucket)
-    .map(([time, bpms]) => ({
-      hour: time,
-      bpm: Math.round(bpms.reduce((sum, v) => sum + v, 0) / bpms.length),
-    }))
-    .sort((a, b) => a.hour.localeCompare(b.hour));
+  const snapshots = await getDailyHealthTrend(dayCount)
+
+  return snapshots.map((snapshot) => ({
+    day: snapshot.day,
+    lowestHeartRate: snapshot.sleep?.lowestHeartRate ?? null,
+    cardioAge: snapshot.vitals?.cardiovascularAge ?? null,
+    stressHigh: secondsToMinutes(snapshot.stress?.stressHighSeconds ?? null),
+    recoveryHigh: secondsToMinutes(snapshot.stress?.recoveryHighSeconds ?? null),
+    readinessScore: snapshot.readiness?.score ?? null,
+    sleepScore: snapshot.sleep?.score ?? null,
+    steps: snapshot.activity?.steps ?? null,
+    activeCalories: snapshot.activity?.activeCalories ?? null,
+    isPartial: snapshot.freshness.isPartial,
+  }))
 }
 
-// ─── Sleep Intraday Heart Rate ─────────────────────────────────────────────────
+export interface StressIntradayPoint {
+  hour: string
+  bpm: number
+}
+
+function getIntradayQueryBounds(date: string) {
+  const dayStart = new Date(`${date}T00:00:00.000Z`)
+  return {
+    gte: new Date(dayStart.getTime() - 14 * 60 * 60 * 1000),
+    lte: new Date(dayStart.getTime() + 38 * 60 * 60 * 1000),
+  }
+}
+
+export async function getIntradayHeartRate(date: string): Promise<StressIntradayPoint[]> {
+  const { gte, lte } = getIntradayQueryBounds(date)
+  const entries = await getRawHeartRateEntriesInRange(gte, lte)
+
+  if (entries.length === 0) return []
+
+  const bucketMap = new Map<string, number[]>()
+  for (const entry of entries) {
+    if (getLocalDayString(entry.timestamp, BUSINESS_TIME_ZONE) !== date) continue
+    const bucket = getBucketTimeInZone(entry.timestamp, 15, BUSINESS_TIME_ZONE)
+    const values = bucketMap.get(bucket) ?? []
+    values.push(entry.bpm)
+    bucketMap.set(bucket, values)
+  }
+
+  const nowBucket = isToday(parseISO(date))
+    ? getBucketTimeInZone(new Date(), 15, BUSINESS_TIME_ZONE)
+    : null
+
+  return Array.from(bucketMap.entries())
+    .filter(([time]) => nowBucket == null || time <= nowBucket)
+    .map(([time, values]) => ({
+      hour: time,
+      bpm: Math.round(values.reduce((sum, value) => sum + value, 0) / values.length),
+    }))
+    .sort((left, right) => left.hour.localeCompare(right.hour))
+}
 
 export interface SleepIntradayPoint {
-  time: string; // "HH:MM"
-  bpm: number;
+  time: string
+  bpm: number
 }
 
 interface OuraHeartRateData {
-  interval: number;
-  items: (number | null)[];
-  timestamp: string;
+  interval: number
+  items: Array<number | null>
+  timestamp: string
 }
 
-export async function getSleepIntradayData(
-  date: string,
-): Promise<SleepIntradayPoint[]> {
-  const records = await getRawSleepPeriods(date);
-
-  // Prefer long_sleep period, fallback to any period with HR data
+export async function getSleepIntradayData(date: string): Promise<SleepIntradayPoint[]> {
+  const records = await getRawSleepPeriods(date)
   const record =
-    records.find((r) => r.sleepType === "long_sleep" && r.heartRateData) ??
-    records.find((r) => r.heartRateData);
+    records.find((item) => item.sleepType === "long_sleep" && item.heartRateData) ??
+    records.find((item) => item.heartRateData)
 
-  if (!record?.heartRateData) return [];
+  if (!record?.heartRateData) return []
 
-  const hrData = record.heartRateData as unknown as OuraHeartRateData;
-  if (!hrData?.items?.length) return [];
+  const heartRateData = record.heartRateData as unknown as OuraHeartRateData
+  if (!heartRateData.items?.length) return []
 
-  const baseTime = new Date(hrData.timestamp);
-  const intervalMs = hrData.interval * 1000;
+  const baseTime = new Date(heartRateData.timestamp)
+  const intervalMs = heartRateData.interval * 1000
+  const bucketMap = new Map<string, number[]>()
 
-  const bucketMap = new Map<string, number[]>();
-  hrData.items.forEach((bpm, i) => {
-    if (bpm == null) return;
-    const t = new Date(baseTime.getTime() + i * intervalMs);
-    const totalMin = t.getUTCHours() * 60 + t.getUTCMinutes();
-    const bucket = Math.floor(totalMin / 15) * 15;
-    const hh = String(Math.floor(bucket / 60)).padStart(2, "0");
-    const mm = String(bucket % 60).padStart(2, "0");
-    const key = `${hh}:${mm}`;
-    if (!bucketMap.has(key)) bucketMap.set(key, []);
-    bucketMap.get(key)!.push(bpm);
-  });
+  heartRateData.items.forEach((value, index) => {
+    if (value == null) return
+    const sampleTime = new Date(baseTime.getTime() + index * intervalMs)
+    const bucket = getBucketTimeInZone(sampleTime, 15, BUSINESS_TIME_ZONE)
+    const values = bucketMap.get(bucket) ?? []
+    values.push(value)
+    bucketMap.set(bucket, values)
+  })
 
   return Array.from(bucketMap.entries())
-    .map(([time, bpms]) => ({
+    .map(([time, values]) => ({
       time,
-      bpm: Math.round(bpms.reduce((a, b) => a + b, 0) / bpms.length),
+      bpm: Math.round(values.reduce((sum, value) => sum + value, 0) / values.length),
     }))
-    .sort((a, b) => a.time.localeCompare(b.time));
+    .sort((left, right) => left.time.localeCompare(right.time))
 }
-
-// ─── Sleep Phase Timeline ─────────────────────────────────────────────────────
 
 export interface SleepPhasePoint {
-  time: string; // "HH:MM" UTC
-  phase: 1 | 2 | 3 | 4; // 1=deep, 2=light, 3=rem, 4=awake
+  time: string
+  phase: 1 | 2 | 3 | 4
 }
 
-export async function getSleepPhaseData(
-  date: string,
-): Promise<SleepPhasePoint[]> {
-  const records = await getRawSleepPhaseData(date);
-
-  // Prefer long_sleep, fallback to any with sleepPhaseData
+export async function getSleepPhaseData(date: string): Promise<SleepPhasePoint[]> {
+  const records = await getRawSleepPhaseData(date)
   const record =
-    records.find((r) => r.sleepType === "long_sleep" && r.sleepPhaseData) ??
-    records.find((r) => r.sleepPhaseData);
+    records.find((item) => item.sleepType === "long_sleep" && item.sleepPhaseData) ??
+    records.find((item) => item.sleepPhaseData)
 
-  if (!record?.sleepPhaseData) return [];
+  if (!record?.sleepPhaseData) return []
 
-  const chars = record.sleepPhaseData.split("");
-  const base = record.bedtimeStart.getTime();
+  const phases = record.sleepPhaseData.split("")
+  const baseTime = record.bedtimeStart.getTime()
 
-  const points: SleepPhasePoint[] = [];
-  for (let i = 0; i < chars.length; i++) {
-    const ch = chars[i];
-    if (ch !== "1" && ch !== "2" && ch !== "3" && ch !== "4") continue;
-    const phase = Number(ch) as 1 | 2 | 3 | 4;
-    const t = new Date(base + i * 5 * 60 * 1000);
-    const hh = String(t.getUTCHours()).padStart(2, "0");
-    const mm = String(t.getUTCMinutes()).padStart(2, "0");
-    points.push({ time: `${hh}:${mm}`, phase });
-  }
-
-  return points;
+  return phases
+    .map((phase, index) => {
+      if (phase !== "1" && phase !== "2" && phase !== "3" && phase !== "4") return null
+      const sampleTime = new Date(baseTime + index * 5 * 60 * 1000)
+      return {
+        time: formatTimeInZone(sampleTime, BUSINESS_TIME_ZONE),
+        phase: Number(phase) as 1 | 2 | 3 | 4,
+      }
+    })
+    .filter((point): point is SleepPhasePoint => point != null)
 }
 
-// ─── Stress Intraday Heart Rate ────────────────────────────────────────────────
+export async function getStressIntradayData(date: string): Promise<StressIntradayPoint[]> {
+  const { gte, lte } = getIntradayQueryBounds(date)
+  const entries = await getRawHeartRateEntriesInRange(gte, lte, "sleep")
 
-export async function getStressIntradayData(
-  date: string,
-): Promise<StressIntradayPoint[]> {
-  const dayStart = new Date(`${date}T00:00:00.000Z`);
-  const gte = new Date(dayStart.getTime() - 14 * 60 * 60 * 1000);
-  const lte = new Date(dayStart.getTime() + 38 * 60 * 60 * 1000);
+  if (entries.length === 0) return []
 
-  const entries = await getRawHeartRateEntriesInRange(gte, lte, "sleep");
-
-  if (entries.length === 0) return [];
-
-  const bucketMap = new Map<string, number[]>();
+  const bucketMap = new Map<string, number[]>()
   for (const entry of entries) {
-    const totalMinutes =
-      entry.timestamp.getUTCHours() * 60 + entry.timestamp.getUTCMinutes();
-    const bucketMinutes = Math.floor(totalMinutes / 15) * 15;
-    const hh = String(Math.floor(bucketMinutes / 60)).padStart(2, "0");
-    const mm = String(bucketMinutes % 60).padStart(2, "0");
-    const key = `${hh}:${mm}`;
-    if (!bucketMap.has(key)) bucketMap.set(key, []);
-    bucketMap.get(key)!.push(entry.bpm);
+    if (getLocalDayString(entry.timestamp, BUSINESS_TIME_ZONE) !== date) continue
+    const bucket = getBucketTimeInZone(entry.timestamp, 15, BUSINESS_TIME_ZONE)
+    const values = bucketMap.get(bucket) ?? []
+    values.push(entry.bpm)
+    bucketMap.set(bucket, values)
   }
 
-  const now = new Date();
   const nowBucket = isToday(parseISO(date))
-    ? `${String(now.getUTCHours()).padStart(2, "0")}:${String(Math.floor(now.getUTCMinutes() / 15) * 15).padStart(2, "0")}`
-    : null;
+    ? getBucketTimeInZone(new Date(), 15, BUSINESS_TIME_ZONE)
+    : null
 
   return Array.from(bucketMap.entries())
-    .filter(([time]) => nowBucket === null || time <= nowBucket)
-    .map(([time, bpms]) => ({
+    .filter(([time]) => nowBucket == null || time <= nowBucket)
+    .map(([time, values]) => ({
       hour: time,
-      bpm: Math.round(bpms.reduce((sum, v) => sum + v, 0) / bpms.length),
+      bpm: Math.round(values.reduce((sum, value) => sum + value, 0) / values.length),
     }))
-    .sort((a, b) => a.hour.localeCompare(b.hour));
+    .sort((left, right) => left.hour.localeCompare(right.hour))
 }

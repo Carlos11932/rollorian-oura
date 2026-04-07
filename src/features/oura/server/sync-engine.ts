@@ -1,3 +1,5 @@
+import { subMinutes } from "date-fns"
+import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { fetchEndpoint } from "@/lib/oura/client"
 import { getValidAccessToken } from "@/lib/oura/oauth"
@@ -7,6 +9,7 @@ import type { EndpointKey } from "@/lib/oura/endpoints"
 import { OuraApiError } from "@/lib/oura/pagination"
 
 export const NON_WEAR_THRESHOLD_SECONDS = 28_800 // 8 hours
+export const STALE_SYNC_SESSION_MINUTES = 15
 
 export interface SyncOptions {
   endpoints: EndpointKey[]
@@ -23,13 +26,87 @@ export interface SyncResult {
   status: "success" | "partial" | "error"
   recordsInserted: number
   recordsUpdated: number
+  recordsUnchanged: number
   recordsSkipped: number
+  staleSessionsClosed: number
   warnings: SyncWarning[]
   unavailableEndpoints: string[]
   errors: Array<{ endpoint: string; message: string }>
 }
 
+interface UpsertResult {
+  inserted: number
+  updated: number
+  unchanged: number
+  skipped: number
+}
+
+type UpsertOutcome = "inserted" | "updated" | "unchanged" | "skipped"
+
+type ModelDelegate = {
+  findUnique(args: { where: Record<string, unknown> }): Promise<unknown>
+  create(args: { data: unknown }): Promise<unknown>
+  update(args: { where: Record<string, unknown>; data: unknown }): Promise<unknown>
+}
+
+export function categorizeEndpointError(
+  endpoint: string,
+  err: unknown,
+  warnings: SyncWarning[],
+  unavailableEndpoints: string[],
+  errors: Array<{ endpoint: string; message: string }>,
+): void {
+  const isOptional404 =
+    err instanceof OuraApiError &&
+    err.status === 404 &&
+    OURA_ENDPOINTS[endpoint as EndpointKey]?.availabilityPolicy === "optional"
+
+  if (isOptional404) {
+    warnings.push({
+      endpoint,
+      code: "unavailable",
+      message: err instanceof Error ? err.message : String(err),
+    })
+    unavailableEndpoints.push(endpoint)
+    return
+  }
+
+  errors.push({
+    endpoint,
+    message: err instanceof Error ? err.message : String(err),
+  })
+}
+
+export function computeFinalStatus(
+  errors: Array<{ endpoint: string; message: string }>,
+  endpointCount: number,
+): "success" | "partial" | "error" {
+  if (errors.length === 0) return "success"
+  if (errors.length < endpointCount) return "partial"
+  return "error"
+}
+
+export async function closeStaleRunningSessions(now = new Date()): Promise<number> {
+  const cutoff = subMinutes(now, STALE_SYNC_SESSION_MINUTES)
+  const result = await prisma.ouraSyncSession.updateMany({
+    where: {
+      status: "running",
+      finishedAt: null,
+      startedAt: { lt: cutoff },
+    },
+    data: {
+      status: "error",
+      finishedAt: now,
+      errorMessage: "Sync session abandoned before completion",
+    },
+  })
+
+  return result.count
+}
+
 export async function syncEndpoints(options: SyncOptions): Promise<SyncResult> {
+  const staleSessionsClosed = await closeStaleRunningSessions()
+
   const session = await prisma.ouraSyncSession.create({
     data: {
       status: "running",
@@ -42,6 +119,7 @@ export async function syncEndpoints(options: SyncOptions): Promise<SyncResult> {
 
   let totalInserted = 0
   let totalUpdated = 0
+  let totalUnchanged = 0
   let totalSkipped = 0
   const errors: Array<{ endpoint: string; message: string }> = []
   const warnings: SyncWarning[] = []
@@ -73,35 +151,26 @@ export async function syncEndpoints(options: SyncOptions): Promise<SyncResult> {
         )
         totalInserted += result.inserted
         totalUpdated += result.updated
+        totalUnchanged += result.unchanged
         totalSkipped += result.skipped
       } catch (err) {
-        const isOptional404 =
-          err instanceof OuraApiError &&
-          err.status === 404 &&
-          OURA_ENDPOINTS[endpoint]?.availabilityPolicy === "optional"
-
-        if (isOptional404) {
-          warnings.push({
-            endpoint,
-            code: "unavailable",
-            message: err instanceof Error ? err.message : String(err),
-          })
-          unavailableEndpoints.push(endpoint)
-        } else {
-          errors.push({
-            endpoint,
-            message: err instanceof Error ? err.message : String(err),
-          })
-        }
+        categorizeEndpointError(
+          endpoint,
+          err,
+          warnings,
+          unavailableEndpoints,
+          errors,
+        )
       }
     }
 
-    const finalStatus =
-      errors.length === 0
-        ? "success"
-        : errors.length < options.endpoints.length
-          ? "partial"
-          : "error"
+    const finalStatus = computeFinalStatus(errors, options.endpoints.length)
+    const detailPayload = buildSessionDetailPayload({
+      errors,
+      warnings,
+      staleSessionsClosed,
+      recordsUnchanged: totalUnchanged,
+    })
 
     await prisma.ouraSyncSession.update({
       where: { id: session.id },
@@ -115,11 +184,8 @@ export async function syncEndpoints(options: SyncOptions): Promise<SyncResult> {
           errors.length > 0
             ? errors.map((e) => `${e.endpoint}: ${e.message}`).join("; ")
             : null,
-        errorDetails:
-          errors.length > 0
-            ? (errors as unknown as import("@prisma/client").Prisma.InputJsonValue)
-            : undefined,
-        unavailableEndpoints: unavailableEndpoints,
+        errorDetails: detailPayload,
+        unavailableEndpoints,
       },
     })
 
@@ -128,7 +194,9 @@ export async function syncEndpoints(options: SyncOptions): Promise<SyncResult> {
       status: finalStatus,
       recordsInserted: totalInserted,
       recordsUpdated: totalUpdated,
+      recordsUnchanged: totalUnchanged,
       recordsSkipped: totalSkipped,
+      staleSessionsClosed,
       warnings,
       unavailableEndpoints,
       errors,
@@ -140,16 +208,16 @@ export async function syncEndpoints(options: SyncOptions): Promise<SyncResult> {
         status: "error",
         finishedAt: new Date(),
         errorMessage: err instanceof Error ? err.message : String(err),
+        errorDetails: buildSessionDetailPayload({
+          errors: [{ endpoint: "session", message: err instanceof Error ? err.message : String(err) }],
+          warnings,
+          staleSessionsClosed,
+          recordsUnchanged: totalUnchanged,
+        }),
       },
     })
     throw err
   }
-}
-
-interface UpsertResult {
-  inserted: number
-  updated: number
-  skipped: number
 }
 
 async function upsertEndpointData(
@@ -160,6 +228,7 @@ async function upsertEndpointData(
 ): Promise<UpsertResult> {
   let inserted = 0
   let updated = 0
+  let unchanged = 0
   let skipped = 0
 
   for (const raw of rawData) {
@@ -169,20 +238,15 @@ async function upsertEndpointData(
       continue
     }
 
-    try {
-      const result = await upsertRecord(endpoint, normalized, force)
-      if (result === "inserted") inserted++
-      else if (result === "updated") updated++
-      else skipped++
-    } catch {
-      skipped++
-    }
+    const result = await upsertRecord(endpoint, normalized, force)
+    if (result === "inserted") inserted++
+    else if (result === "updated") updated++
+    else if (result === "unchanged") unchanged++
+    else skipped++
   }
 
-  return { inserted, updated, skipped }
+  return { inserted, updated, unchanged, skipped }
 }
-
-type UpsertOutcome = "inserted" | "updated" | "skipped"
 
 async function upsertRecord(
   endpoint: string,
@@ -196,203 +260,253 @@ async function upsertRecord(
   switch (endpoint) {
     case "personal_info":
       if (!ouraId) return "skipped"
-      await prisma.ouraPersonalInfo.upsert({
-        where: { ouraId },
-        create: data as import("@prisma/client").Prisma.OuraPersonalInfoCreateInput,
-        update: force
-          ? (data as import("@prisma/client").Prisma.OuraPersonalInfoUpdateInput)
-          : {},
-      })
-      return force ? "updated" : "inserted"
+      return persistByUnique(
+        prisma.ouraPersonalInfo,
+        { ouraId },
+        data as Prisma.OuraPersonalInfoCreateInput,
+        data as Prisma.OuraPersonalInfoUpdateInput,
+        force,
+      )
 
     case "daily_sleep":
       if (!ouraId) return "skipped"
-      await prisma.ouraSleepDaily.upsert({
-        where: { ouraId },
-        create: data as import("@prisma/client").Prisma.OuraSleepDailyCreateInput,
-        update: force
-          ? (data as import("@prisma/client").Prisma.OuraSleepDailyUpdateInput)
-          : {},
-      })
-      return force ? "updated" : "inserted"
+      return persistByUnique(
+        prisma.ouraSleepDaily,
+        { ouraId },
+        data as Prisma.OuraSleepDailyCreateInput,
+        data as Prisma.OuraSleepDailyUpdateInput,
+        force,
+      )
 
     case "sleep":
       if (!ouraId) return "skipped"
-      await prisma.ouraSleepPeriod.upsert({
-        where: { ouraId },
-        create: data as import("@prisma/client").Prisma.OuraSleepPeriodCreateInput,
-        update: force
-          ? (data as import("@prisma/client").Prisma.OuraSleepPeriodUpdateInput)
-          : {},
-      })
-      return "inserted"
+      return persistByUnique(
+        prisma.ouraSleepPeriod,
+        { ouraId },
+        data as Prisma.OuraSleepPeriodCreateInput,
+        data as Prisma.OuraSleepPeriodUpdateInput,
+        force,
+      )
 
     case "daily_readiness":
       if (!ouraId) return "skipped"
-      await prisma.ouraReadinessDaily.upsert({
-        where: { ouraId },
-        create: data as import("@prisma/client").Prisma.OuraReadinessDailyCreateInput,
-        update: force
-          ? (data as import("@prisma/client").Prisma.OuraReadinessDailyUpdateInput)
-          : {},
-      })
-      return "inserted"
+      return persistByUnique(
+        prisma.ouraReadinessDaily,
+        { ouraId },
+        data as Prisma.OuraReadinessDailyCreateInput,
+        data as Prisma.OuraReadinessDailyUpdateInput,
+        force,
+      )
 
     case "daily_activity":
       if (!ouraId) return "skipped"
-      await prisma.ouraActivityDaily.upsert({
-        where: { ouraId },
-        create: data as import("@prisma/client").Prisma.OuraActivityDailyCreateInput,
-        update: force
-          ? (data as import("@prisma/client").Prisma.OuraActivityDailyUpdateInput)
-          : {},
-      })
-      return "inserted"
+      return persistByUnique(
+        prisma.ouraActivityDaily,
+        { ouraId },
+        data as Prisma.OuraActivityDailyCreateInput,
+        data as Prisma.OuraActivityDailyUpdateInput,
+        force,
+      )
 
     case "daily_stress":
       if (!ouraId) return "skipped"
-      await prisma.ouraStressDaily.upsert({
-        where: { ouraId },
-        create: data as import("@prisma/client").Prisma.OuraStressDailyCreateInput,
-        update: force
-          ? (data as import("@prisma/client").Prisma.OuraStressDailyUpdateInput)
-          : {},
-      })
-      return "inserted"
+      return persistByUnique(
+        prisma.ouraStressDaily,
+        { ouraId },
+        data as Prisma.OuraStressDailyCreateInput,
+        data as Prisma.OuraStressDailyUpdateInput,
+        force,
+      )
 
     case "daily_resilience":
       if (!ouraId) return "skipped"
-      await prisma.ouraResilienceDaily.upsert({
-        where: { ouraId },
-        create: data as import("@prisma/client").Prisma.OuraResilienceDailyCreateInput,
-        update: force
-          ? (data as import("@prisma/client").Prisma.OuraResilienceDailyUpdateInput)
-          : {},
-      })
-      return "inserted"
+      return persistByUnique(
+        prisma.ouraResilienceDaily,
+        { ouraId },
+        data as Prisma.OuraResilienceDailyCreateInput,
+        data as Prisma.OuraResilienceDailyUpdateInput,
+        force,
+      )
 
     case "heartrate":
       if (!timestamp) return "skipped"
-      await prisma.ouraHeartRateEntry.upsert({
-        where: { timestamp },
-        create: data as import("@prisma/client").Prisma.OuraHeartRateEntryCreateInput,
-        update: force
-          ? (data as import("@prisma/client").Prisma.OuraHeartRateEntryUpdateInput)
-          : {},
-      })
-      return "inserted"
+      return persistByUnique(
+        prisma.ouraHeartRateEntry,
+        { timestamp },
+        data as Prisma.OuraHeartRateEntryCreateInput,
+        data as Prisma.OuraHeartRateEntryUpdateInput,
+        force,
+      )
 
     case "daily_spo2":
       if (!ouraId) return "skipped"
-      await prisma.ouraSpo2Daily.upsert({
-        where: { ouraId },
-        create: data as import("@prisma/client").Prisma.OuraSpo2DailyCreateInput,
-        update: force
-          ? (data as import("@prisma/client").Prisma.OuraSpo2DailyUpdateInput)
-          : {},
-      })
-      return "inserted"
+      return persistByUnique(
+        prisma.ouraSpo2Daily,
+        { ouraId },
+        data as Prisma.OuraSpo2DailyCreateInput,
+        data as Prisma.OuraSpo2DailyUpdateInput,
+        force,
+      )
 
     case "daily_cardiovascular_age":
       if (!day) return "skipped"
-      await prisma.ouraCardiovascularAge.upsert({
-        where: { day },
-        create: data as import("@prisma/client").Prisma.OuraCardiovascularAgeCreateInput,
-        update: force
-          ? (data as import("@prisma/client").Prisma.OuraCardiovascularAgeUpdateInput)
-          : {},
-      })
-      return "inserted"
+      return persistByUnique(
+        prisma.ouraCardiovascularAge,
+        { day },
+        data as Prisma.OuraCardiovascularAgeCreateInput,
+        data as Prisma.OuraCardiovascularAgeUpdateInput,
+        force,
+      )
 
     case "vo2_max":
       if (!ouraId) return "skipped"
-      await prisma.ouraVo2Max.upsert({
-        where: { ouraId },
-        create: data as import("@prisma/client").Prisma.OuraVo2MaxCreateInput,
-        update: force
-          ? (data as import("@prisma/client").Prisma.OuraVo2MaxUpdateInput)
-          : {},
-      })
-      return "inserted"
+      return persistByUnique(
+        prisma.ouraVo2Max,
+        { ouraId },
+        data as Prisma.OuraVo2MaxCreateInput,
+        data as Prisma.OuraVo2MaxUpdateInput,
+        force,
+      )
 
     case "workout":
       if (!ouraId) return "skipped"
-      await prisma.ouraWorkout.upsert({
-        where: { ouraId },
-        create: data as import("@prisma/client").Prisma.OuraWorkoutCreateInput,
-        update: force
-          ? (data as import("@prisma/client").Prisma.OuraWorkoutUpdateInput)
-          : {},
-      })
-      return "inserted"
+      return persistByUnique(
+        prisma.ouraWorkout,
+        { ouraId },
+        data as Prisma.OuraWorkoutCreateInput,
+        data as Prisma.OuraWorkoutUpdateInput,
+        force,
+      )
 
     case "session":
       if (!ouraId) return "skipped"
-      await prisma.ouraSession.upsert({
-        where: { ouraId },
-        create: data as import("@prisma/client").Prisma.OuraSessionCreateInput,
-        update: force
-          ? (data as import("@prisma/client").Prisma.OuraSessionUpdateInput)
-          : {},
-      })
-      return "inserted"
+      return persistByUnique(
+        prisma.ouraSession,
+        { ouraId },
+        data as Prisma.OuraSessionCreateInput,
+        data as Prisma.OuraSessionUpdateInput,
+        force,
+      )
 
     case "tag":
       if (!ouraId) return "skipped"
-      await prisma.ouraTag.upsert({
-        where: { ouraId },
-        create: data as import("@prisma/client").Prisma.OuraTagCreateInput,
-        update: force
-          ? (data as import("@prisma/client").Prisma.OuraTagUpdateInput)
-          : {},
-      })
-      return "inserted"
+      return persistByUnique(
+        prisma.ouraTag,
+        { ouraId },
+        data as Prisma.OuraTagCreateInput,
+        data as Prisma.OuraTagUpdateInput,
+        force,
+      )
 
     case "enhanced_tag":
       if (!ouraId) return "skipped"
-      await prisma.ouraEnhancedTag.upsert({
-        where: { ouraId },
-        create: data as import("@prisma/client").Prisma.OuraEnhancedTagCreateInput,
-        update: force
-          ? (data as import("@prisma/client").Prisma.OuraEnhancedTagUpdateInput)
-          : {},
-      })
-      return "inserted"
+      return persistByUnique(
+        prisma.ouraEnhancedTag,
+        { ouraId },
+        data as Prisma.OuraEnhancedTagCreateInput,
+        data as Prisma.OuraEnhancedTagUpdateInput,
+        force,
+      )
 
     case "sleep_time":
       if (!ouraId) return "skipped"
-      await prisma.ouraSleepTime.upsert({
-        where: { ouraId },
-        create: data as import("@prisma/client").Prisma.OuraSleepTimeCreateInput,
-        update: force
-          ? (data as import("@prisma/client").Prisma.OuraSleepTimeUpdateInput)
-          : {},
-      })
-      return "inserted"
+      return persistByUnique(
+        prisma.ouraSleepTime,
+        { ouraId },
+        data as Prisma.OuraSleepTimeCreateInput,
+        data as Prisma.OuraSleepTimeUpdateInput,
+        force,
+      )
 
     case "rest_mode_period":
       if (!ouraId) return "skipped"
-      await prisma.ouraRestModePeriod.upsert({
-        where: { ouraId },
-        create: data as import("@prisma/client").Prisma.OuraRestModePeriodCreateInput,
-        update: force
-          ? (data as import("@prisma/client").Prisma.OuraRestModePeriodUpdateInput)
-          : {},
-      })
-      return "inserted"
+      return persistByUnique(
+        prisma.ouraRestModePeriod,
+        { ouraId },
+        data as Prisma.OuraRestModePeriodCreateInput,
+        data as Prisma.OuraRestModePeriodUpdateInput,
+        force,
+      )
 
     case "ring_configuration":
       if (!ouraId) return "skipped"
-      await prisma.ouraRingConfig.upsert({
-        where: { ouraId },
-        create: data as import("@prisma/client").Prisma.OuraRingConfigCreateInput,
-        update: force
-          ? (data as import("@prisma/client").Prisma.OuraRingConfigUpdateInput)
-          : {},
-      })
-      return "inserted"
+      return persistByUnique(
+        prisma.ouraRingConfig,
+        { ouraId },
+        data as Prisma.OuraRingConfigCreateInput,
+        data as Prisma.OuraRingConfigUpdateInput,
+        force,
+      )
 
     default:
       return "skipped"
   }
+}
+
+async function persistByUnique(
+  delegate: ModelDelegate,
+  where: Record<string, unknown>,
+  createData: unknown,
+  updateData: unknown,
+  force: boolean,
+): Promise<UpsertOutcome> {
+  if (!force) {
+    try {
+      await delegate.create({ data: createData })
+      return "inserted"
+    } catch (error) {
+      if (isUniqueConstraintError(error)) {
+        return "unchanged"
+      }
+      throw error
+    }
+  }
+
+  const existing = await delegate.findUnique({ where })
+  if (existing) {
+    await delegate.update({ where, data: updateData })
+    return "updated"
+  }
+
+  try {
+    await delegate.create({ data: createData })
+    return "inserted"
+  } catch (error) {
+    if (!isUniqueConstraintError(error)) {
+      throw error
+    }
+
+    await delegate.update({ where, data: updateData })
+    return "updated"
+  }
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  )
+}
+
+function buildSessionDetailPayload({
+  errors,
+  warnings,
+  staleSessionsClosed,
+  recordsUnchanged,
+}: {
+  errors: Array<{ endpoint: string; message: string }>
+  warnings: SyncWarning[]
+  staleSessionsClosed: number
+  recordsUnchanged: number
+}): Prisma.InputJsonValue | undefined {
+  const payload = {
+    ...(errors.length > 0 ? { errors } : {}),
+    ...(warnings.length > 0 ? { warnings } : {}),
+    ...(staleSessionsClosed > 0 ? { staleSessionsClosed } : {}),
+    ...(recordsUnchanged > 0 ? { recordsUnchanged } : {}),
+  }
+
+  return Object.keys(payload).length > 0
+    ? (payload as Prisma.InputJsonValue)
+    : undefined
 }

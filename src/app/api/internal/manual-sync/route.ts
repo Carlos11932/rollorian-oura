@@ -2,10 +2,11 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
 import { NextRequest, NextResponse } from "next/server"
-import { format, subDays } from "date-fns"
+import { subDays } from "date-fns"
 import { syncEndpoints } from "@/features/oura/server/sync-engine"
 import { ALL_SYNCABLE_ENDPOINTS } from "@/lib/oura/endpoints"
 import { validateInternalApiKey } from "@/lib/auth"
+import { getLocalDayString } from "@/lib/utils/day"
 
 export async function POST(request: NextRequest) {
   if (!validateInternalApiKey(request)) {
@@ -13,8 +14,8 @@ export async function POST(request: NextRequest) {
   }
 
   const today = new Date()
-  const startDate = format(subDays(today, 1), "yyyy-MM-dd")
-  const endDate = format(today, "yyyy-MM-dd")
+  const startDate = getLocalDayString(subDays(today, 2))
+  const endDate = getLocalDayString(today)
 
   try {
     const result = await syncEndpoints({

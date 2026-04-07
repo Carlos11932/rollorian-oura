@@ -29,7 +29,7 @@ const COLORS = {
 
 interface TooltipPayloadEntry {
   name: string;
-  value: number;
+  value: number | null;
   color: string;
 }
 
@@ -53,7 +53,7 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
         <div key={entry.name} className="flex items-center justify-between gap-4">
           <span className="capitalize text-emerald-400">{entry.name}</span>
           <span className="font-mono text-white">
-            {entry.value.toFixed(1)}h
+            {entry.value != null ? `${entry.value.toFixed(1)}h` : "n/a"}
           </span>
         </div>
       ))}
@@ -76,9 +76,15 @@ export function SleepAreaChart({ data, onDayClick }: SleepAreaChartProps) {
     }
   }
 
-  const hasBreakdown = data.some((d) => d.deep > 0 || d.rem > 0 || d.light > 0);
+  const hasBreakdown = data.some(
+    (d) => (d.deep ?? 0) > 0 || (d.rem ?? 0) > 0 || (d.light ?? 0) > 0,
+  );
   const hasAnyData = data.some(
-    (d) => d.totalHours > 0 || d.deep > 0 || d.rem > 0 || d.light > 0,
+    (d) =>
+      (d.totalHours ?? 0) > 0 ||
+      (d.deep ?? 0) > 0 ||
+      (d.rem ?? 0) > 0 ||
+      (d.light ?? 0) > 0,
   );
 
   if (!hasAnyData) {

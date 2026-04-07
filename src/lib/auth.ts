@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server"
 import crypto from "crypto"
+import { getInternalApiKey } from "@/lib/env"
 
 export function validateInternalApiKey(request: NextRequest): boolean {
   const key = request.headers.get("x-api-key") ?? ""
-  const expected = process.env["INTERNAL_API_KEY"] ?? ""
+  const expected = getInternalApiKey() ?? ""
   if (expected.length === 0) return false
   // HMAC with a non-secret constant normalizes both inputs to fixed-length 32-byte
   // digests, eliminating the length-leak that timingSafeEqual would otherwise have.
