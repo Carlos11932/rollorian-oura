@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/prisma"
+import { getOuraOAuthEnv } from "@/lib/env"
 
 const OURA_AUTH_URL = "https://cloud.ouraring.com/oauth/authorize"
 const OURA_TOKEN_URL = "https://api.ouraring.com/oauth/token"
 const OURA_REVOKE_URL = "https://api.ouraring.com/oauth/revoke"
+let refreshInFlight: Promise<string> | null = null
 
 export function buildAuthorizationUrl(
   clientId: string,
@@ -92,15 +94,17 @@ export async function getValidAccessToken(): Promise<string> {
     return token.accessToken
   }
 
-  return refreshAccessToken(token.refreshToken)
+  if (!refreshInFlight) {
+    refreshInFlight = refreshAccessToken(token.refreshToken).finally(() => {
+      refreshInFlight = null
+    })
+  }
+
+  return refreshInFlight
 }
 
 async function refreshAccessToken(refreshToken: string): Promise<string> {
-  const clientId = process.env["OURA_CLIENT_ID"]
-  const clientSecret = process.env["OURA_CLIENT_SECRET"]
-  if (!clientId || !clientSecret) {
-    throw new Error("Oura credentials not configured")
-  }
+  const { OURA_CLIENT_ID: clientId, OURA_CLIENT_SECRET: clientSecret } = getOuraOAuthEnv()
 
   const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64")
   const res = await fetch(OURA_TOKEN_URL, {

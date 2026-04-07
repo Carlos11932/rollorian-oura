@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDonnaHealth } from "@/features/oura/server/donna";
 import { validateInternalApiKey } from "@/lib/auth";
+import { getLocalDayString } from "@/lib/utils/day";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!validateInternalApiKey(request)) {
@@ -8,7 +9,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const { searchParams } = new URL(request.url);
-  const day = searchParams.get("day") ?? new Date().toISOString().slice(0, 10);
+  const day = searchParams.get("day") ?? getLocalDayString();
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
     return NextResponse.json(

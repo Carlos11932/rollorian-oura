@@ -1,22 +1,16 @@
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import type { OuraInsight } from "@prisma/client"
+import { getRawResilienceDaily } from "@/features/oura/server/data"
 import {
-  getRawSleepDaily,
-  getRawSleepTrend,
-  getRawReadiness,
-  getRawStressDaily,
-  getRawResilienceDaily,
-} from "@/features/oura/server/data"
+  getDailyHealthSnapshot,
+  getDailyHealthTrend,
+} from "@/features/oura/server/health-snapshot"
 import { insightRules } from "./rules"
 import type { DayContext } from "./rules"
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const GENERATED_BY = "rules/context-api"
 const STALE_HOURS = 6
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface GeneratedInsight {
   insightType: string
@@ -27,8 +21,6 @@ export interface GeneratedInsight {
 }
 
 export type StoredInsight = OuraInsight
-
-// ─── Severity ordering ────────────────────────────────────────────────────────
 
 const SEVERITY_ORDER: Record<string, number> = {
   alert: 0,
@@ -42,7 +34,11 @@ function bySeverity(a: OuraInsight, b: OuraInsight): number {
   return aOrder - bOrder
 }
 
-// ─── Staleness check ─────────────────────────────────────────────────────────
+function byGeneratedSeverity(a: GeneratedInsight, b: GeneratedInsight): number {
+  const aOrder = SEVERITY_ORDER[a.severity] ?? 99
+  const bOrder = SEVERITY_ORDER[b.severity] ?? 99
+  return aOrder - bOrder
+}
 
 function isStale(insight: OuraInsight): boolean {
   const ageMs = Date.now() - insight.createdAt.getTime()
@@ -50,36 +46,28 @@ function isStale(insight: OuraInsight): boolean {
   return ageHours > STALE_HOURS
 }
 
-// ─── Core Functions ───────────────────────────────────────────────────────────
+function dedupeInsights(insights: GeneratedInsight[]): GeneratedInsight[] {
+  const deduped = new Map<string, GeneratedInsight>()
+  for (const insight of insights) {
+    deduped.set(`${insight.insightType}:${insight.title}`, insight)
+  }
+  return Array.from(deduped.values()).sort(byGeneratedSeverity)
+}
 
-/**
- * Fetch all data needed for insight evaluation, evaluate all rules,
- * upsert results into DB (deleteMany + createMany for the day), and return the generated insights.
- */
 export async function generateInsights(day: string): Promise<GeneratedInsight[]> {
-  // Fetch all needed data in parallel
-  const [sleepRows, readiness, stressRows, resilience, sleepTrend14d] =
-    await Promise.all([
-      getRawSleepDaily(day, day).catch(() => [] as Awaited<ReturnType<typeof getRawSleepDaily>>),
-      getRawReadiness(day).catch(() => null),
-      getRawStressDaily(day, day).catch(() => [] as Awaited<ReturnType<typeof getRawStressDaily>>),
-      getRawResilienceDaily(day).catch(() => null),
-      getRawSleepTrend(14).catch(() => [] as Awaited<ReturnType<typeof getRawSleepTrend>>),
-    ])
-
-  const sleep = sleepRows[0] ?? null
-  const stress = stressRows[0] ?? null
+  const [snapshot, trend14d, resilience] = await Promise.all([
+    getDailyHealthSnapshot(day),
+    getDailyHealthTrend(14),
+    getRawResilienceDaily(day).catch(() => null),
+  ])
 
   const context: DayContext = {
     day,
-    sleep,
-    readiness,
-    stress,
+    snapshot,
+    trend14d,
     resilience,
-    sleepTrend14d,
   }
 
-  // Evaluate all rules — collect non-null results
   const candidates: GeneratedInsight[] = []
   for (const rule of insightRules) {
     try {
@@ -93,24 +81,27 @@ export async function generateInsights(day: string): Promise<GeneratedInsight[]>
           metadata: result.metadata,
         })
       }
-    } catch (err) {
-      // Rule evaluation must never crash the engine — log and skip
-      console.error(`[insights] Rule ${rule.id} failed:`, err)
+    } catch (error) {
+      console.error(`[insights] Rule ${rule.id} failed:`, error)
     }
   }
 
-  // Upsert: delete all existing rule-generated insights for this day, then create new ones
+  const insights = dedupeInsights(candidates)
+
   await prisma.$transaction(async (tx) => {
     await tx.ouraInsight.deleteMany({ where: { day, generatedBy: GENERATED_BY } })
-    if (candidates.length > 0) {
+    if (insights.length > 0) {
       await tx.ouraInsight.createMany({
-        data: candidates.map((c) => ({
+        data: insights.map((insight) => ({
           day,
-          insightType: c.insightType,
-          severity: c.severity,
-          title: c.title,
-          message: c.message,
-          metadata: c.metadata != null ? (c.metadata as Prisma.InputJsonValue) : Prisma.JsonNull,
+          insightType: insight.insightType,
+          severity: insight.severity,
+          title: insight.title,
+          message: insight.message,
+          metadata:
+            insight.metadata != null
+              ? (insight.metadata as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
           generatedBy: GENERATED_BY,
           acknowledged: false,
         })),
@@ -118,13 +109,9 @@ export async function generateInsights(day: string): Promise<GeneratedInsight[]>
     }
   })
 
-  return candidates
+  return insights
 }
 
-/**
- * Retrieve stored insights for a given day from the database,
- * ordered by severity: alert > warning > info.
- */
 export async function getStoredInsights(day: string): Promise<StoredInsight[]> {
   const rows = await prisma.ouraInsight.findMany({
     where: { day, generatedBy: GENERATED_BY },
@@ -132,15 +119,12 @@ export async function getStoredInsights(day: string): Promise<StoredInsight[]> {
   return rows.sort(bySeverity)
 }
 
-/**
- * Check whether a day's stored insights are stale (older than 6 hours)
- * or missing entirely. Returns true if regeneration is needed.
- */
 export async function areInsightsStale(day: string): Promise<boolean> {
   const latest = await prisma.ouraInsight.findFirst({
     where: { day, generatedBy: GENERATED_BY },
     orderBy: { createdAt: "desc" },
   })
+
   if (latest == null) return true
   return isStale(latest)
 }

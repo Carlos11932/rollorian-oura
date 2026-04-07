@@ -3,6 +3,9 @@ export const dynamic = "force-dynamic"
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { validateInternalApiKey } from "@/lib/auth"
+import { Prisma } from "@prisma/client"
+import { subMinutes } from "date-fns"
+import { STALE_SYNC_SESSION_MINUTES } from "@/features/oura/server/sync-engine"
 
 // ─── In-memory cache + single-flight (stampede protection) ──────────────────
 //
@@ -52,13 +55,39 @@ export async function GET(request: NextRequest) {
 }
 
 async function computeStatus() {
-  const [lastSession, tokenExists, totalCounts] = await Promise.all([
+  const staleThreshold = subMinutes(new Date(), STALE_SYNC_SESSION_MINUTES)
+
+  const [lastSession, lastFinishedSession, tokenExists, sessionCounts, coverageCounts, totalCounts] = await Promise.all([
     prisma.ouraSyncSession.findFirst({
       orderBy: { startedAt: "desc" },
+    }),
+    prisma.ouraSyncSession.findFirst({
+      where: { finishedAt: { not: null } },
+      orderBy: { finishedAt: "desc" },
     }),
     prisma.ouraOAuthToken
       .findUnique({ where: { id: "singleton" } })
       .then(Boolean),
+    Promise.all([
+      prisma.ouraSyncSession.count({ where: { status: "success" } }),
+      prisma.ouraSyncSession.count({ where: { status: "partial" } }),
+      prisma.ouraSyncSession.count({ where: { status: "error" } }),
+      prisma.ouraSyncSession.count({ where: { status: "running", finishedAt: null } }),
+      prisma.ouraSyncSession.count({
+        where: {
+          status: "running",
+          finishedAt: null,
+          startedAt: { lt: staleThreshold },
+        },
+      }),
+    ]),
+    Promise.all([
+      prisma.ouraSleepDaily.count({ where: { totalSleepSeconds: { not: null } } }),
+      prisma.ouraSleepDaily.count({ where: { averageHrv: { not: null } } }),
+      prisma.ouraSleepPeriod.count({ where: { heartRateData: { not: Prisma.JsonNull } } }),
+      prisma.ouraSpo2Daily.count({ where: { spo2Average: { not: null } } }),
+      prisma.ouraVo2Max.count({ where: { vo2Max: { not: null } } }),
+    ]),
     Promise.all([
       prisma.ouraSleepDaily.count(),
       prisma.ouraSleepPeriod.count(),
@@ -88,7 +117,18 @@ async function computeStatus() {
 
   const responseData = {
     connected: tokenExists,
-    lastSync: lastSession
+    lastSync: lastFinishedSession
+      ? {
+          id: lastFinishedSession.id,
+          status: lastFinishedSession.status,
+          startedAt: lastFinishedSession.startedAt,
+          finishedAt: lastFinishedSession.finishedAt,
+          recordsInserted: lastFinishedSession.recordsInserted,
+          recordsUpdated: lastFinishedSession.recordsUpdated,
+          source: lastFinishedSession.source,
+        }
+      : null,
+    latestSession: lastSession
       ? {
           id: lastSession.id,
           status: lastSession.status,
@@ -99,6 +139,27 @@ async function computeStatus() {
           source: lastSession.source,
         }
       : null,
+    sessionHealth: {
+      success: sessionCounts[0],
+      partial: sessionCounts[1],
+      error: sessionCounts[2],
+      running: sessionCounts[3],
+      staleRunning: sessionCounts[4],
+    },
+    coverage: {
+      sleepWithDuration: coverageCounts[0],
+      sleepWithHrv: coverageCounts[1],
+      sleepPeriodsWithHeartRate: coverageCounts[2],
+      spo2Available: coverageCounts[3],
+      vo2Available: coverageCounts[4],
+    },
+    featureAvailability: {
+      gapTrackingActive: totalCounts[21] > 0 || totalCounts[22] > 0,
+      restModeAvailable: totalCounts[15] > 0,
+      ringConfigAvailable: totalCounts[16] > 0,
+      vo2Available: coverageCounts[4] > 0,
+      spo2Available: coverageCounts[3] > 0,
+    },
     recordCounts: {
       sleepDaily: totalCounts[0],
       sleepPeriods: totalCounts[1],

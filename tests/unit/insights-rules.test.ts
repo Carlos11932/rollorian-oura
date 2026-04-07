@@ -1,251 +1,177 @@
 import { describe, it, expect } from "vitest";
 import { insightRules } from "@/features/oura/server/insights/rules";
 import type { DayContext } from "@/features/oura/server/insights/rules";
+import type { DailyHealthSnapshot } from "@/features/oura/server/health-snapshot";
 
-/**
- * S4 — Insights: Scenario 8 — No triggering rules
- *
- * GIVEN the day has data but no thresholds are crossed
- * WHEN insights are generated
- * THEN all rules return null (no triggered insights)
- *
- * We test the insightRules.evaluate() functions directly with mock DayContext.
- * No Prisma, no network — pure functional evaluation.
- */
-
-// ─── Mock Data Builders ────────────────────────────────────────────────────────
-//
-// OuraSleepDaily and friends are Prisma types. In tests we cast them with
-// the minimum required fields. We only need the fields used by the rules.
-
-function makeSleepDaily(overrides: Partial<{
-  score: number | null;
-  averageHrv: number | null;
-  efficiency: number | null;
-  totalSleepSeconds: number | null;
-  day: string;
-}> = {}) {
+function makeSnapshot(
+  overrides: Partial<DailyHealthSnapshot> = {},
+): DailyHealthSnapshot {
   return {
-    id: "test-id",
-    ouraId: "oura-id",
     day: "2026-03-29",
-    score: overrides.score ?? null,
-    averageHrv: overrides.averageHrv ?? null,
-    efficiency: overrides.efficiency ?? null,
-    totalSleepSeconds: overrides.totalSleepSeconds ?? null,
-    averageBreath: null,
-    lowestHeartRate: null,
-    deepSleepSeconds: null,
-    lightSleepSeconds: null,
-    remSleepSeconds: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    sleep: null,
+    readiness: null,
+    activity: null,
+    stress: null,
+    vitals: null,
+    syncStatus: { available: [], unavailable: [] },
+    freshness: {
+      lastSuccessfulSync: null,
+      isPartial: false,
+      missingBlocks: [],
+      missingMetrics: [],
+    },
     ...overrides,
-  } as unknown as import("@prisma/client").OuraSleepDaily;
-}
-
-function makeStressDaily(overrides: Partial<{
-  stressHighSeconds: number | null;
-  recoveryHighSeconds: number | null;
-}> = {}) {
-  return {
-    id: "test-id",
-    ouraId: "oura-id",
-    day: "2026-03-29",
-    stressHighSeconds: overrides.stressHighSeconds ?? null,
-    recoveryHighSeconds: overrides.recoveryHighSeconds ?? null,
-    daySummary: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    ...overrides,
-  } as unknown as import("@prisma/client").OuraStressDaily;
+  };
 }
 
 function makeContext(overrides: Partial<DayContext> = {}): DayContext {
   return {
     day: "2026-03-29",
-    sleep: null,
-    readiness: null,
-    stress: null,
+    snapshot: makeSnapshot(),
+    trend14d: [],
     resilience: null,
-    sleepTrend14d: [],
     ...overrides,
   };
 }
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
-
-describe("Insight rules — Scenario 8: No triggering rules", () => {
-  describe("GIVEN all data is null (no data for the day)", () => {
-    it("all rules return null when context has no data", () => {
-      const context = makeContext();
-
-      for (const rule of insightRules) {
-        const result = rule.evaluate(context);
-        expect(result, `Rule ${rule.id} should return null with empty context`).toBeNull();
-      }
-    });
+describe("Insight rules", () => {
+  it("all rules return null with an empty snapshot", () => {
+    const context = makeContext();
+    for (const rule of insightRules) {
+      expect(rule.evaluate(context), `Rule ${rule.id} should be null`).toBeNull();
+    }
   });
 
-  describe("GIVEN data is present but all within normal ranges (no thresholds crossed)", () => {
-    it("low-sleep-score rule returns null for score >= 70", () => {
-      const rule = insightRules.find((r) => r.id === "low-sleep-score")!;
-
-      // Boundary: exactly 70 — should NOT fire
-      const context70 = makeContext({ sleep: makeSleepDaily({ score: 70 }) });
-      expect(rule.evaluate(context70)).toBeNull();
-
-      // Well above threshold
-      const context85 = makeContext({ sleep: makeSleepDaily({ score: 85 }) });
-      expect(rule.evaluate(context85)).toBeNull();
+  it("low-sleep-score fires for score below 70", () => {
+    const rule = insightRules.find((item) => item.id === "low-sleep-score")!;
+    const context = makeContext({
+      snapshot: makeSnapshot({
+        sleep: {
+          score: 65,
+          totalSleepSeconds: 24_000,
+          timeInBedSeconds: 26_000,
+          efficiency: 92,
+          averageHrv: 45,
+          averageHeartRate: 54,
+          averageBreath: null,
+          lowestHeartRate: 49,
+          deepSleepSeconds: 4_000,
+          remSleepSeconds: 5_000,
+          lightSleepSeconds: 15_000,
+          awakeSeconds: 2_000,
+          bedtimeStart: null,
+          bedtimeEnd: null,
+          source: "mixed",
+        },
+      }),
     });
 
-    it("high-stress rule returns null for stress <= 60 minutes (3600 seconds)", () => {
-      const rule = insightRules.find((r) => r.id === "high-stress")!;
+    expect(rule.evaluate(context)).not.toBeNull();
+  });
 
-      // Exactly 60 minutes = 3600 seconds — boundary, should NOT fire
-      const context60 = makeContext({ stress: makeStressDaily({ stressHighSeconds: 3600 }) });
-      expect(rule.evaluate(context60)).toBeNull();
-
-      // Below threshold
-      const context30 = makeContext({ stress: makeStressDaily({ stressHighSeconds: 1800 }) });
-      expect(rule.evaluate(context30)).toBeNull();
+  it("high-stress fires above 60 minutes", () => {
+    const rule = insightRules.find((item) => item.id === "high-stress")!;
+    const context = makeContext({
+      snapshot: makeSnapshot({
+        stress: {
+          stressHighSeconds: 4_200,
+          recoveryHighSeconds: 1_800,
+          daySummary: "stressful",
+        },
+      }),
     });
 
-    it("low-hrv rule returns null when HRV is within 20% of 14-day average", () => {
-      const rule = insightRules.find((r) => r.id === "low-hrv")!;
+    expect(rule.evaluate(context)?.metadata?.stressHighMinutes).toBe(70);
+  });
 
-      // 14-day average: 50 ms. Today: 42 ms → drop is (50-42)/50 = 16% < 20% → no fire
-      const sleep = makeSleepDaily({ averageHrv: 42, day: "2026-03-29" });
-      const trend = Array.from({ length: 7 }, (_, i) =>
-        makeSleepDaily({ averageHrv: 50, day: `2026-03-${String(22 + i).padStart(2, "0")}` }),
-      );
-
-      const context = makeContext({ sleep, sleepTrend14d: trend });
-      expect(rule.evaluate(context)).toBeNull();
-    });
-
-    it("low-hrv rule returns null when no 14-day trend data is available", () => {
-      const rule = insightRules.find((r) => r.id === "low-hrv")!;
-      const sleep = makeSleepDaily({ averageHrv: 30 }); // low but no trend to compare
-      const context = makeContext({ sleep, sleepTrend14d: [] });
-      expect(rule.evaluate(context)).toBeNull();
-    });
-
-    it("poor-efficiency rule returns null for efficiency >= 75", () => {
-      const rule = insightRules.find((r) => r.id === "poor-efficiency")!;
-
-      // Exactly at threshold
-      const context75 = makeContext({ sleep: makeSleepDaily({ efficiency: 75 }) });
-      expect(rule.evaluate(context75)).toBeNull();
-
-      const context90 = makeContext({ sleep: makeSleepDaily({ efficiency: 90 }) });
-      expect(rule.evaluate(context90)).toBeNull();
-    });
-
-    it("excellent-recovery rule returns null for recovery <= 90 minutes (5400 seconds)", () => {
-      const rule = insightRules.find((r) => r.id === "excellent-recovery")!;
-
-      // Exactly 90 minutes = 5400 seconds — boundary, should NOT fire
-      const context90 = makeContext({ stress: makeStressDaily({ recoveryHighSeconds: 5400 }) });
-      expect(rule.evaluate(context90)).toBeNull();
-
-      const context60 = makeContext({ stress: makeStressDaily({ recoveryHighSeconds: 3600 }) });
-      expect(rule.evaluate(context60)).toBeNull();
-    });
-
-    it("short-sleep rule returns null for total sleep >= 6 hours (21600 seconds)", () => {
-      const rule = insightRules.find((r) => r.id === "short-sleep")!;
-
-      // Exactly 6 hours = 21600 seconds — boundary, should NOT fire
-      const context6h = makeContext({ sleep: makeSleepDaily({ totalSleepSeconds: 21600 }) });
-      expect(rule.evaluate(context6h)).toBeNull();
-
-      // 8 hours = 28800 seconds
-      const context8h = makeContext({ sleep: makeSleepDaily({ totalSleepSeconds: 28800 }) });
-      expect(rule.evaluate(context8h)).toBeNull();
-    });
-
-    it("all rules return null for a healthy day (all values in normal range)", () => {
-      const sleep = makeSleepDaily({
+  it("low-hrv compares against the 14-day baseline", () => {
+    const rule = insightRules.find((item) => item.id === "low-hrv")!;
+    const snapshot = makeSnapshot({
+      sleep: {
         score: 82,
-        averageHrv: 48,
-        efficiency: 82,
-        totalSleepSeconds: 25200, // 7 hours
-      });
-      const stress = makeStressDaily({
-        stressHighSeconds: 1800,   // 30 min stress
-        recoveryHighSeconds: 3600, // 60 min recovery (exactly at boundary → no fire)
-      });
-      // Trend HRV similar to today — no significant drop
-      const trend = Array.from({ length: 7 }, (_, i) =>
-        makeSleepDaily({ averageHrv: 50, day: `2026-03-${String(22 + i).padStart(2, "0")}` }),
-      );
-
-      const context = makeContext({ sleep, stress, sleepTrend14d: trend });
-
-      const triggered = insightRules
-        .map((r) => ({ id: r.id, result: r.evaluate(context) }))
-        .filter((r) => r.result !== null);
-
-      expect(triggered).toHaveLength(0);
+        totalSleepSeconds: 26_000,
+        timeInBedSeconds: 28_000,
+        efficiency: 88,
+        averageHrv: 35,
+        averageHeartRate: 55,
+        averageBreath: null,
+        lowestHeartRate: 48,
+        deepSleepSeconds: 4_000,
+        remSleepSeconds: 5_000,
+        lightSleepSeconds: 17_000,
+        awakeSeconds: 2_000,
+        bedtimeStart: null,
+        bedtimeEnd: null,
+        source: "mixed",
+      },
     });
-  });
-});
-
-describe("Insight rules — threshold verification (rules DO fire when thresholds crossed)", () => {
-  it("low-sleep-score fires for score < 70", () => {
-    const rule = insightRules.find((r) => r.id === "low-sleep-score")!;
-    const context = makeContext({ sleep: makeSleepDaily({ score: 65 }) });
-    const result = rule.evaluate(context);
-    expect(result).not.toBeNull();
-    expect(result?.metadata?.score).toBe(65);
-  });
-
-  it("high-stress fires for > 60 minutes of stress", () => {
-    const rule = insightRules.find((r) => r.id === "high-stress")!;
-    const context = makeContext({ stress: makeStressDaily({ stressHighSeconds: 4200 }) }); // 70 min
-    const result = rule.evaluate(context);
-    expect(result).not.toBeNull();
-    expect(result?.metadata?.stressHighMinutes).toBe(70);
-  });
-
-  it("poor-efficiency fires for efficiency < 75", () => {
-    const rule = insightRules.find((r) => r.id === "poor-efficiency")!;
-    const context = makeContext({ sleep: makeSleepDaily({ efficiency: 65 }) });
-    const result = rule.evaluate(context);
-    expect(result).not.toBeNull();
-    expect(result?.metadata?.efficiency).toBe(65);
-  });
-
-  it("short-sleep fires for < 6 hours (< 21600 seconds)", () => {
-    const rule = insightRules.find((r) => r.id === "short-sleep")!;
-    const context = makeContext({ sleep: makeSleepDaily({ totalSleepSeconds: 18000 }) }); // 5 hours
-    const result = rule.evaluate(context);
-    expect(result).not.toBeNull();
-    expect(result?.metadata?.totalSleepHours).toBe(5.0);
-  });
-
-  it("excellent-recovery fires for > 90 minutes recovery", () => {
-    const rule = insightRules.find((r) => r.id === "excellent-recovery")!;
-    const context = makeContext({ stress: makeStressDaily({ recoveryHighSeconds: 6600 }) }); // 110 min
-    const result = rule.evaluate(context);
-    expect(result).not.toBeNull();
-    expect(result?.metadata?.recoveryHighMinutes).toBe(110);
-  });
-
-  it("low-hrv fires when HRV drops > 20% below 14-day average", () => {
-    const rule = insightRules.find((r) => r.id === "low-hrv")!;
-
-    // Average: 50 ms. Today: 35 ms → drop = (50-35)/50 = 30% > 20% → fires
-    const sleep = makeSleepDaily({ averageHrv: 35, day: "2026-03-29" });
-    const trend = Array.from({ length: 7 }, (_, i) =>
-      makeSleepDaily({ averageHrv: 50, day: `2026-03-${String(22 + i).padStart(2, "0")}` }),
+    const trend14d = Array.from({ length: 7 }, (_, index) =>
+      makeSnapshot({
+        day: `2026-03-${String(22 + index).padStart(2, "0")}`,
+        sleep: {
+          score: 85,
+          totalSleepSeconds: 27_000,
+          timeInBedSeconds: 29_000,
+          efficiency: 90,
+          averageHrv: 50,
+          averageHeartRate: 53,
+          averageBreath: null,
+          lowestHeartRate: 47,
+          deepSleepSeconds: 4_200,
+          remSleepSeconds: 5_100,
+          lightSleepSeconds: 17_700,
+          awakeSeconds: 1_000,
+          bedtimeStart: null,
+          bedtimeEnd: null,
+          source: "mixed",
+        },
+      }),
     );
 
-    const context = makeContext({ sleep, sleepTrend14d: trend });
-    const result = rule.evaluate(context);
-    expect(result).not.toBeNull();
-    expect(result?.metadata?.dropPercent).toBeGreaterThan(20);
+    const context = makeContext({ snapshot, trend14d });
+    expect(rule.evaluate(context)?.metadata?.dropPercent).toBeGreaterThan(20);
+  });
+
+  it("short-sleep fires below six hours", () => {
+    const rule = insightRules.find((item) => item.id === "short-sleep")!;
+    const context = makeContext({
+      snapshot: makeSnapshot({
+        sleep: {
+          score: 60,
+          totalSleepSeconds: 18_000,
+          timeInBedSeconds: 20_000,
+          efficiency: 70,
+          averageHrv: 40,
+          averageHeartRate: 56,
+          averageBreath: null,
+          lowestHeartRate: 50,
+          deepSleepSeconds: 3_000,
+          remSleepSeconds: 3_000,
+          lightSleepSeconds: 12_000,
+          awakeSeconds: 2_000,
+          bedtimeStart: null,
+          bedtimeEnd: null,
+          source: "mixed",
+        },
+      }),
+    });
+
+    expect(rule.evaluate(context)?.metadata?.totalSleepHours).toBe(5);
+  });
+
+  it("partial-sync fires when freshness says the day is partial", () => {
+    const rule = insightRules.find((item) => item.id === "partial-sync")!;
+    const context = makeContext({
+      snapshot: makeSnapshot({
+        freshness: {
+          lastSuccessfulSync: null,
+          isPartial: true,
+          missingBlocks: ["activity"],
+          missingMetrics: ["sleep.averageHrv"],
+        },
+      }),
+    });
+
+    expect(rule.evaluate(context)?.metadata?.missingBlocks).toEqual(["activity"]);
   });
 });

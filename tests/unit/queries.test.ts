@@ -19,7 +19,7 @@ describe("getDateRange", () => {
 
   it("7d returns last 7 days", () => {
     const { startDate, endDate } = getDateRange("7d");
-    expect(startDate).toBe("2025-06-08");
+    expect(startDate).toBe("2025-06-09");
     expect(endDate).toBe("2025-06-15");
   });
 

@@ -1,4 +1,10 @@
-import { subDays, subMonths, subYears, format } from "date-fns"
+import { parseISO } from "date-fns"
+import {
+  getInclusiveDayWindow,
+  getLocalDayString,
+  getMonthWindow,
+  getYearWindow,
+} from "@/lib/utils/day"
 
 // ─── Period ───────────────────────────────────────────────────────────────────
 
@@ -26,34 +32,27 @@ export function getDateRange(
   period: DateRangePeriod,
   selectedDate?: string,
 ): { startDate: string; endDate: string } {
-  const end = new Date()
-  const endDate = format(end, "yyyy-MM-dd")
-
   if (period === "1d") {
     const day =
       selectedDate && /^\d{4}-\d{2}-\d{2}$/.test(selectedDate)
         ? selectedDate
-        : endDate
+        : getLocalDayString()
     return { startDate: day, endDate: day }
   }
 
   if (period === "1m") {
-    return {
-      startDate: format(subMonths(end, 1), "yyyy-MM-dd"),
-      endDate,
-    }
+    const { startDay, endDay } = getMonthWindow()
+    return { startDate: startDay, endDate: endDay }
   }
 
   if (period === "1a") {
-    return {
-      startDate: format(subYears(end, 1), "yyyy-MM-dd"),
-      endDate,
-    }
+    const { startDay, endDay } = getYearWindow()
+    return { startDate: startDay, endDate: endDay }
   }
 
   const days = DATE_RANGE_PERIOD[period as keyof typeof DATE_RANGE_PERIOD]
-  return {
-    startDate: format(subDays(end, days), "yyyy-MM-dd"),
-    endDate,
-  }
+  const anchorDate =
+    selectedDate && /^\d{4}-\d{2}-\d{2}$/.test(selectedDate) ? parseISO(selectedDate) : new Date()
+  const { startDay, endDay } = getInclusiveDayWindow(days, anchorDate)
+  return { startDate: startDay, endDate: endDay }
 }

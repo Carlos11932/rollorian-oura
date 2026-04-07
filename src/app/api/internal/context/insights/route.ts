@@ -7,6 +7,7 @@ import {
   getStoredInsights,
   areInsightsStale,
 } from "@/features/oura/server/insights/engine"
+import { getLocalDayString } from "@/lib/utils/day"
 
 // ─── Response Shape ───────────────────────────────────────────────────────────
 
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     )
   }
 
-  const day = dayParam ?? new Date().toISOString().slice(0, 10)
+  const day = dayParam ?? getLocalDayString()
   const force = forceParam === "true"
 
   // Check staleness

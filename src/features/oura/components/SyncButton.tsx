@@ -17,6 +17,15 @@ export function SyncButton() {
   const [state, setState] = useState<SyncState>(SYNC_STATE.IDLE);
   const [message, setMessage] = useState<string | null>(null);
 
+  const stateLabel =
+    state === SYNC_STATE.SYNCING
+      ? "..."
+      : state === SYNC_STATE.DONE
+        ? "OK"
+        : state === SYNC_STATE.ERROR
+          ? "ERR"
+          : "SYNC";
+
   async function handleSync() {
     if (state === SYNC_STATE.SYNCING) return;
 
@@ -60,20 +69,7 @@ export function SyncButton() {
             "border-red-800 bg-red-950 text-red-400",
         )}
       >
-        <span
-          className={cn(
-            "material-symbols-outlined text-base leading-none",
-            state === SYNC_STATE.SYNCING && "animate-spin",
-          )}
-        >
-          {state === SYNC_STATE.SYNCING
-            ? "sync"
-            : state === SYNC_STATE.DONE
-              ? "check_circle"
-              : state === SYNC_STATE.ERROR
-                ? "error"
-                : "sync"}
-        </span>
+        <span className="font-mono text-[11px] leading-none">{stateLabel}</span>
         <span>
           {state === SYNC_STATE.SYNCING
             ? "Sincronizando..."

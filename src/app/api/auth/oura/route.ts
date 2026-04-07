@@ -1,22 +1,15 @@
 export const dynamic = "force-dynamic"
 
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { buildAuthorizationUrl } from "@/lib/oura/oauth"
 import { cookies } from "next/headers"
 import crypto from "crypto"
+import { getAppBaseUrl, getOuraOAuthEnv, getOuraRedirectUri } from "@/lib/env"
 
-export async function GET() {
-  const clientId = process.env["OURA_CLIENT_ID"]
-  const redirectUri =
-    process.env["OURA_REDIRECT_URI"] ??
-    `${process.env["NEXTAUTH_URL"]}/api/auth/oura/callback`
-
-  if (!clientId) {
-    return NextResponse.json(
-      { error: "OURA_CLIENT_ID not configured" },
-      { status: 500 },
-    )
-  }
+export async function GET(request: NextRequest) {
+  const { OURA_CLIENT_ID: clientId } = getOuraOAuthEnv()
+  const redirectUri = getOuraRedirectUri(request)
+  const baseUrl = getAppBaseUrl(request)
 
   const state = crypto.randomBytes(16).toString("hex")
   const url = buildAuthorizationUrl(clientId, redirectUri, state)
@@ -27,7 +20,7 @@ export async function GET() {
     path: "/api/auth/oura/callback",
     sameSite: "lax",
     maxAge: 600,
-    secure: process.env.NEXTAUTH_URL?.startsWith("https://") ?? process.env.NODE_ENV === "production",
+    secure: baseUrl.startsWith("https://") || process.env.NODE_ENV === "production",
   })
 
   return NextResponse.redirect(url)

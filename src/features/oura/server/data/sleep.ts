@@ -27,6 +27,18 @@ export async function getRawSleepPeriods(
   });
 }
 
+export async function getRawSleepPeriodsInRange(
+  startDay: string,
+  endDay: string,
+): Promise<OuraSleepPeriod[]> {
+  return prisma.ouraSleepPeriod.findMany({
+    where: {
+      day: { gte: startDay, lte: endDay },
+    },
+    orderBy: [{ day: "asc" }, { period: "asc" }],
+  });
+}
+
 // ─── Raw Sleep Phase Data ─────────────────────────────────────────────────────
 
 export async function getRawSleepPhaseData(day: string): Promise<

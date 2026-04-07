@@ -1,9 +1,10 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { getDatabaseUrl } from "@/lib/env";
 
 function createPrismaClient() {
   const adapter = new PrismaPg(
-    { connectionString: process.env["DATABASE_URL"] ?? "" },
+    { connectionString: getDatabaseUrl() },
     { schema: "oura" },
   );
   return new PrismaClient({ adapter });

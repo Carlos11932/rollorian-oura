@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic"
+export const maxDuration = 60
 
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
@@ -11,6 +12,8 @@ const backfillSchema = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   chunkDays: z.number().int().min(1).max(90).optional().default(30),
+  cursorStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  force: z.boolean().optional().default(false),
 })
 
 export async function POST(request: NextRequest) {
@@ -28,44 +31,41 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const { startDate, endDate, chunkDays } = parsed.data
+  const { startDate, endDate, chunkDays, cursorStartDate, force } = parsed.data
+  const currentStart = cursorStartDate ?? startDate
 
-  // Run backfill in the background — do not block the response
-  // In production this should be a queue job; for personal use this is sufficient
-  runBackfillAsync(startDate, endDate, chunkDays).catch(console.error)
+  if (parseISO(currentStart) > parseISO(endDate)) {
+    return NextResponse.json({
+      message: "Backfill already complete",
+      done: true,
+      nextStartDate: null,
+    })
+  }
+
+  const chunkEnd = addDays(parseISO(currentStart), chunkDays - 1)
+  const actualEnd = chunkEnd > parseISO(endDate) ? parseISO(endDate) : chunkEnd
+  const actualEndDate = format(actualEnd, "yyyy-MM-dd")
+
+  const result = await syncEndpoints({
+    endpoints: DAILY_SYNC_ENDPOINTS,
+    startDate: currentStart,
+    endDate: actualEndDate,
+    force,
+    source: "backfill",
+  })
+
+  const nextStart = addDays(actualEnd, 1)
+  const nextStartDate =
+    nextStart <= parseISO(endDate) ? format(nextStart, "yyyy-MM-dd") : null
 
   return NextResponse.json({
-    message: "Backfill started",
-    startDate,
-    endDate,
-    chunkDays,
-    estimatedChunks: Math.ceil(
-      (parseISO(endDate).getTime() - parseISO(startDate).getTime()) /
-        (chunkDays * 24 * 60 * 60 * 1000),
-    ),
+    message: "Backfill chunk processed",
+    done: nextStartDate == null,
+    nextStartDate,
+    processedWindow: {
+      startDate: currentStart,
+      endDate: actualEndDate,
+    },
+    result,
   })
-}
-
-async function runBackfillAsync(
-  startDate: string,
-  endDate: string,
-  chunkDays: number,
-): Promise<void> {
-  let current = parseISO(startDate)
-  const end = parseISO(endDate)
-
-  while (current <= end) {
-    const chunkEnd = addDays(current, chunkDays - 1)
-    const actualEnd = chunkEnd > end ? end : chunkEnd
-
-    await syncEndpoints({
-      endpoints: DAILY_SYNC_ENDPOINTS,
-      startDate: format(current, "yyyy-MM-dd"),
-      endDate: format(actualEnd, "yyyy-MM-dd"),
-      force: false,
-      source: "backfill",
-    })
-
-    current = addDays(actualEnd, 1)
-  }
 }

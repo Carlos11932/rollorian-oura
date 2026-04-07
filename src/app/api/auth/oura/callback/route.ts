@@ -3,11 +3,10 @@ export const dynamic = "force-dynamic"
 import { NextRequest, NextResponse } from "next/server"
 import { exchangeCodeForTokens, saveTokens } from "@/lib/oura/oauth"
 import { cookies } from "next/headers"
+import { getAppBaseUrl, getOuraOAuthEnv, getOuraRedirectUri } from "@/lib/env"
 
 export async function GET(request: NextRequest) {
-  const baseUrl =
-    process.env["NEXTAUTH_URL"] ??
-    `https://${request.headers.get("host") ?? "rollorian-oura.vercel.app"}`
+  const baseUrl = getAppBaseUrl(request)
 
   const searchParams = request.nextUrl.searchParams
   const code = searchParams.get("code")
@@ -34,18 +33,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${baseUrl}/?error=missing_code`)
   }
 
-  const clientId = process.env["OURA_CLIENT_ID"]
-  const clientSecret = process.env["OURA_CLIENT_SECRET"]
-  const redirectUri =
-    process.env["OURA_REDIRECT_URI"] ??
-    `${baseUrl}/api/auth/oura/callback`
-
-  if (!clientId || !clientSecret) {
-    return NextResponse.json(
-      { error: "Oura credentials not configured" },
-      { status: 500 },
-    )
-  }
+  const { OURA_CLIENT_ID: clientId, OURA_CLIENT_SECRET: clientSecret } = getOuraOAuthEnv()
+  const redirectUri = getOuraRedirectUri(request)
 
   try {
     const tokens = await exchangeCodeForTokens(
@@ -55,9 +44,9 @@ export async function GET(request: NextRequest) {
       redirectUri,
     )
     await saveTokens(tokens)
-    return NextResponse.redirect(`${baseUrl}/dashboard?connected=true`)
+    return NextResponse.redirect(`${baseUrl}/?connected=true`)
   } catch (err) {
     console.error("[oura/callback] OAuth error:", err)
-    return NextResponse.json({ error: "OAuth exchange failed" }, { status: 500 })
+    return NextResponse.redirect(`${baseUrl}/?error=oauth_exchange_failed`)
   }
 }
