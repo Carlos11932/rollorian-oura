@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  closeStaleRunningSessions,
+  syncEndpoints,
+} from "@/features/oura/server/sync-engine"
 
 const {
   updateManyMock,
@@ -50,7 +54,6 @@ vi.mock("@/lib/oura/normalizers", () => ({
 
 describe("sync-engine runtime safeguards", () => {
   beforeEach(() => {
-    vi.resetModules()
     updateManyMock.mockReset()
     createSessionMock.mockReset()
     updateSessionMock.mockReset()
@@ -59,8 +62,6 @@ describe("sync-engine runtime safeguards", () => {
 
   it("closes stale running sessions before starting a new sync", async () => {
     updateManyMock.mockResolvedValue({ count: 2 })
-
-    const { closeStaleRunningSessions } = await import("@/features/oura/server/sync-engine")
     const now = new Date("2026-04-07T12:00:00.000Z")
 
     const count = await closeStaleRunningSessions(now)
@@ -85,8 +86,6 @@ describe("sync-engine runtime safeguards", () => {
     createSessionMock.mockResolvedValue({ id: "session-1" })
     updateSessionMock.mockResolvedValue(undefined)
     createSleepDailyMock.mockRejectedValue(new Error("write failed"))
-
-    const { syncEndpoints } = await import("@/features/oura/server/sync-engine")
 
     const result = await syncEndpoints({
       endpoints: ["daily_sleep"],
