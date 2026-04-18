@@ -1,0 +1,50 @@
+{
+  "window": "7d",
+  "sleep": {
+    "points": [
+      {
+        "day": "2026-04-12",
+        "totalSleepHours": 7.1,
+        "efficiency": 90,
+        "score": 84,
+        "averageHrv": 42,
+        "source": "daily_sleep",
+        "isPartial": false
+      }
+    ],
+    "averages": {
+      "totalSleepHours": 7.18,
+      "efficiency": 91.3,
+      "score": 85.1,
+      "averageHrv": 44.6
+    }
+  },
+  "activity": [
+    {
+      "day": "2026-04-12",
+      "score": 79,
+      "steps": 9541,
+      "activeCalories": 544,
+      "isPartial": false
+    }
+  ],
+  "stress": [
+    {
+      "day": "2026-04-12",
+      "stressHighMinutes": 32,
+      "recoveryHighMinutes": 66,
+      "daySummary": "normal",
+      "isPartial": false
+    }
+  ],
+  "readiness": [
+    {
+      "day": "2026-04-12",
+      "score": 85,
+      "temperatureDeviation": 0,
+      "recoveryIndex": 79,
+      "isPartial": false
+    }
+  ],
+  "generatedAt": "2026-04-18T07:02:31.000Z"
+}

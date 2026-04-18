@@ -6,6 +6,23 @@ datasource db {
   provider = "postgresql"
 }
 
+enum AgentClientKind {
+  PRIVATE_COMPANION
+  MCP_CLIENT
+  CUSTOM
+}
+
+enum AgentClientStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum AgentAuditOutcome {
+  SUCCESS
+  FAILURE
+  REJECTED
+}
+
 // ─── OAuth ───────────────────────────────────────────────────────────────────
 
 model OuraOAuthToken {
@@ -406,4 +423,58 @@ model OuraInsight {
 
   @@index([day])
   @@index([insightType])
+}
+
+model AgentClient {
+  id          String            @id @default(cuid())
+  name        String
+  kind        AgentClientKind   @default(CUSTOM)
+  status      AgentClientStatus @default(ACTIVE)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  lastUsedAt  DateTime?
+  credentials AgentCredential[]
+  auditEvents AgentAuditEvent[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AgentCredential {
+  id            String      @id @default(cuid())
+  agentClientId String
+  tokenPrefix   String
+  tokenHash     String      @unique
+  scopes        String[]
+  createdAt     DateTime    @default(now())
+  expiresAt     DateTime?
+  revokedAt     DateTime?
+  lastUsedAt    DateTime?
+  agentClient   AgentClient @relation(fields: [agentClientId], references: [id], onDelete: Cascade)
+  auditEvents   AgentAuditEvent[]
+
+  @@index([agentClientId])
+  @@index([revokedAt])
+  @@index([createdAt])
+}
+
+model AgentAuditEvent {
+  id             String           @id @default(cuid())
+  agentClientId  String
+  credentialId   String?
+  action         String
+  resourceType   String?
+  resourceId     String?
+  outcome        AgentAuditOutcome
+  idempotencyKey String?
+  metadata       Json?
+  createdAt      DateTime         @default(now())
+  agentClient    AgentClient      @relation(fields: [agentClientId], references: [id], onDelete: Cascade)
+  credential     AgentCredential? @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+
+  @@index([agentClientId])
+  @@index([credentialId])
+  @@index([createdAt])
+  @@index([idempotencyKey])
+  @@unique([agentClientId, action, idempotencyKey])
 }
