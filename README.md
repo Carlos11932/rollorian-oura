@@ -4,6 +4,7 @@ Aplicacion Next.js para consumir la API de Oura, persistir datos en Postgres y e
 
 - interfaz propia de salud y recuperacion
 - rutas internas para Donna
+- Agent API privada para companeros y clientes MCP
 - sincronizacion manual y por cron
 
 ## Arquitectura de datos
@@ -14,7 +15,7 @@ Aplicacion Next.js para consumir la API de Oura, persistir datos en Postgres y e
 
 ## Variables de entorno
 
-Consulta [.env.example](/Users/Carlo/AppData/Local/Temp/donna-impl/rollorian-oura/.env.example).
+Consulta [.env.example](/C:/Users/Carlo/Desktop/proyectos/rollorian-oura-agent-platform-v1/.env.example).
 
 Minimas para runtime:
 
@@ -63,4 +64,35 @@ npm run db:migrate:deploy
 ```bash
 npm test
 npm run lint
+npm run build
 ```
+
+Validacion del MCP:
+
+```bash
+cd mcp/rollorian-oura-mcp
+npm ci
+npm run build
+npm run smoke
+```
+
+## Agent Platform
+
+Management API protegida por `x-api-key`:
+
+- `GET /api/agent-clients`
+- `POST /api/agent-clients`
+- `POST /api/agent-clients/[agentClientId]/credentials`
+- `POST /api/agent-clients/[agentClientId]/credentials/[credentialId]/revoke`
+- `POST /api/agent-clients/[agentClientId]/revoke`
+
+Agent API protegida por bearer token:
+
+- `GET /api/agent/v1/status`
+- `GET /api/agent/v1/health?day=YYYY-MM-DD`
+- `GET /api/agent/v1/trends?window=7d|30d`
+
+Documentacion adicional:
+
+- [docs/agent-platform.md](/C:/Users/Carlo/Desktop/proyectos/rollorian-oura-agent-platform-v1/docs/agent-platform.md)
+- [contracts/agent/README.md](/C:/Users/Carlo/Desktop/proyectos/rollorian-oura-agent-platform-v1/contracts/agent/README.md)

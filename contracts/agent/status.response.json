@@ -1,0 +1,16 @@
+{
+  "connected": true,
+  "lastSync": {
+    "id": "sync_123",
+    "status": "success",
+    "startedAt": "2026-04-18T07:00:00.000Z",
+    "finishedAt": "2026-04-18T07:02:31.000Z",
+    "recordsInserted": 12,
+    "recordsUpdated": 4,
+    "recordsSkipped": 0,
+    "source": "donna"
+  },
+  "staleRunningSessions": 0,
+  "insightCount": 18,
+  "generatedAt": "2026-04-18T07:02:31.000Z"
+}

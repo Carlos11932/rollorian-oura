@@ -1,0 +1,78 @@
+{
+  "day": "2026-04-18",
+  "lastSync": "2026-04-18T07:02:31.000Z",
+  "syncStatus": {
+    "available": [
+      "daily_sleep",
+      "daily_readiness",
+      "daily_activity"
+    ],
+    "unavailable": []
+  },
+  "freshness": {
+    "lastSuccessfulSync": "2026-04-18T07:02:31.000Z",
+    "isPartial": false,
+    "missingBlocks": [],
+    "missingMetrics": []
+  },
+  "todaySummary": {
+    "state": "good",
+    "headline": "Sleep and readiness are aligned for a strong day",
+    "factors": [
+      {
+        "key": "sleep_score",
+        "status": "positive",
+        "value": 88,
+        "label": "Sleep score 88"
+      }
+    ]
+  },
+  "todayMetrics": {
+    "sleep": {
+      "score": 88,
+      "totalSleepHours": 7.6,
+      "timeInBedHours": 8.1,
+      "efficiency": 94,
+      "averageHrv": 46,
+      "averageHeartRate": 51,
+      "averageBreath": 13.5,
+      "lowestHeartRate": 47,
+      "deepSleepHours": 1.9,
+      "remSleepHours": 1.7,
+      "lightSleepHours": 4.0,
+      "awakeMinutes": 21,
+      "source": "daily_sleep"
+    },
+    "readiness": {
+      "score": 86,
+      "temperatureDeviation": -0.1,
+      "temperatureTrendDeviation": 0,
+      "activityBalance": 83,
+      "bodyTemperature": 90,
+      "hrvBalance": 82,
+      "previousDayActivity": 79,
+      "previousNight": 88,
+      "recoveryIndex": 80,
+      "restingHeartRateContribution": 85,
+      "sleepBalance": 84
+    },
+    "activity": {
+      "score": 82,
+      "steps": 10412,
+      "activeCalories": 612,
+      "totalCalories": 2450,
+      "equivalentWalkingDistance": 7530
+    },
+    "stress": {
+      "stressHighMinutes": 24,
+      "recoveryHighMinutes": 88,
+      "daytimeStress": "restored"
+    },
+    "vitals": {
+      "cardiovascularAge": 31,
+      "spo2Percentage": 97.6,
+      "vo2Max": 42.1
+    }
+  },
+  "insights": []
+}
